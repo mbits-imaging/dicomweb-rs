@@ -1,6 +1,8 @@
 # DICOMWEB-rs
 
-This is a DICOMweb client library, using the excellent `dicom-rs` crate.
+[![continuous integration](https://github.com/mbits-imaging/dicomweb-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/mbits-imaging/dicomweb-rs/actions/workflows/rust.yml)
+
+This is a DICOMweb client library, using the excellent [dicom-rs](https://github.com/Enet4/dicom-rs) crate.
 
 ## Features
 
@@ -8,9 +10,15 @@ This is a DICOMweb client library, using the excellent `dicom-rs` crate.
   - /studies: query all studies
   - /studies/{uid}/series: query all series inside a specific study
   - /studies/{uid}/series/{uid}/instances: query all instances in a specific series
+  - /series: query all series
+  - /instances: query all instances
 - [x] WADO-RS:
   - /studies/{uid}: retrieve all instances in a specific study
+  - /studies/{uid}/metadata: retrieve metadata for all instances in a study
   - /studies/{uid}/series/{uid}: retrieve all instances in a specific series
+  - /studies/{uid}/series/{uid}/instances/{uid}: retrieve a single instance
+  - /studies/{uid}/series/{uid}/instances/{uid}/metadata: retrieve metadata for a specific instance
+  - /studies/{uid}/series/{uid}/instances/{uid}/frames/{framelist}: retrieve frame pixeldata for a specific instance
 
 ## Usage
 
