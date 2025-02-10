@@ -1,0 +1,20 @@
+[package]
+name = "dicom-web"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dicom-core = "0.8.1"
+dicom-json = "0.8.1"
+dicom-object = "0.8.1"
+futures-util = "0.3.31"
+mime = "0.3.17"
+multipart-rs = "0.2.1"
+reqwest = { version = "0.12.12", features = ["json","stream"] }
+serde_json = { version = "1.0.138", features = ["preserve_order"] }
+snafu = "0.8.5"
+
+[dev-dependencies]
+dicom-dictionary-std = "0.8.0"
+tokio = { version = "1.43.0", features = ["macros"] }
+wiremock = "0.6.2"
