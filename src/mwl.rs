@@ -1,4 +1,6 @@
-//! Module for QIDO-RS requests
+//! Module for MWL-RS requests
+//! See https://github.com/krotz-dieter/dicomweb-dmwl-mpps/blob/main/documents/sup246_05_DICOMwebModalityWorkflowService.docx
+//! Supplement 246: DICOMweb Modality Workflow Services
 use dicom_core::Tag;
 use dicom_json::DicomJson;
 use dicom_object::InMemDicomObject;
@@ -7,10 +9,10 @@ use snafu::ResultExt;
 
 use crate::{DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu};
 
-/// A builder type for QIDO-RS requests
+/// A builder type for MWL-RS requests
 /// By default, the request is built with no filters, no limit, and no offset.
 #[derive(Debug, Clone)]
-pub struct QidoRequest {
+pub struct MwlRequest {
     client: DicomWebClient,
     url: String,
 
@@ -21,9 +23,9 @@ pub struct QidoRequest {
     filters: Vec<(Tag, String)>,
 }
 
-impl QidoRequest {
-    fn new(client: DicomWebClient, url: String) -> Self {
-        QidoRequest {
+impl MwlRequest {
+    pub fn new(client: DicomWebClient, url: String) -> Self {
+        MwlRequest {
             client,
             url,
             limit: None,
@@ -34,7 +36,7 @@ impl QidoRequest {
         }
     }
 
-    /// Execute the QIDO-RS request
+    /// Execute the MWL-RS request
     pub async fn run(&self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
         let mut query: Vec<(String, String)> = vec![];
         if let Some(limit) = self.limit {
@@ -133,49 +135,11 @@ impl QidoRequest {
 }
 
 impl DicomWebClient {
-    /// Create a QIDO-RS request to query all studies
-    pub fn query_studies(&self) -> QidoRequest {
+    /// Create a DMWL-RS request to query all studies
+    pub fn query_modality_scheduled_procedure_steps(&self) -> MwlRequest {
         let base_url = &self.qido_url;
-        let url = format!("{base_url}/studies");
+        let url = format!("{base_url}/modality-scheduled-procedure-steps");
 
-        QidoRequest::new(self.clone(), url)
-    }
-
-    /// Create a QIDO-RS request to query all series
-    pub fn query_series(&self) -> QidoRequest {
-        let base_url = &self.qido_url;
-        let url = format!("{base_url}/series");
-
-        QidoRequest::new(self.clone(), url)
-    }
-
-    /// Create a QIDO-RS request to query all series in a specific study
-    pub fn query_series_in_study(&self, study_instance_uid: &str) -> QidoRequest {
-        let base_url = &self.qido_url;
-        let url = format!("{base_url}/studies/{study_instance_uid}/series");
-
-        QidoRequest::new(self.clone(), url)
-    }
-
-    /// Create a QIDO-RS request to query all instances
-    pub fn query_instances(&self) -> QidoRequest {
-        let base_url = &self.qido_url;
-        let url = format!("{base_url}/instances");
-
-        QidoRequest::new(self.clone(), url)
-    }
-
-    /// Create a QIDO-RS request to query all instances in a specific series
-    pub fn query_instances_in_series(
-        &self,
-        study_instance_uid: &str,
-        series_instance_uid: &str,
-    ) -> QidoRequest {
-        let base_url = &self.qido_url;
-        let url = format!(
-            "{base_url}/studies/{study_instance_uid}/series/{series_instance_uid}/instances",
-        );
-
-        QidoRequest::new(self.clone(), url)
+        MwlRequest::new(self.clone(), url)
     }
 }

@@ -52,6 +52,7 @@ use multipart_rs::MultipartType;
 use reqwest::StatusCode;
 use snafu::Snafu;
 
+mod mwl;
 mod qido;
 mod wado;
 

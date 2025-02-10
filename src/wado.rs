@@ -20,7 +20,7 @@ pub struct WadoMetadataRequest {
 }
 
 impl WadoMetadataRequest {
-    pub fn new(client: DicomWebClient, url: String) -> Self {
+    fn new(client: DicomWebClient, url: String) -> Self {
         WadoMetadataRequest { client, url }
     }
 
