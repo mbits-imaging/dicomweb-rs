@@ -18,7 +18,7 @@ dicom-core = "0.8.1"
 dicom-json = "0.8.1"
 dicom-object = "0.8.1"
 futures-util = "0.3.31"
-mime = "0.3.17"
+mediatype = "0.19.18"
 multipart-rs = "0.2.1"
 reqwest = { version = "0.12.12", features = ["json", "stream"] }
 serde_json = { version = "1.0.138", features = ["preserve_order"] }
@@ -28,6 +28,10 @@ snafu = "0.8.5"
 version = "4.5.29"
 optional = true
 features = ["cargo", "derive"]
+
+[dependencies.dicom-dump]
+version = "0.8.0"
+optional = true
 
 [dependencies.tokio]
 version = "1.43.0"
@@ -49,4 +53,10 @@ wiremock = "0.6.2"
 
 [features]
 # enable command line tools
-cli = ["dep:clap", "dep:tokio", "dep:tracing", "dep:tracing-subscriber"]
+cli = [
+  "dep:clap",
+  "dep:dicom-dump",
+  "dep:tokio",
+  "dep:tracing",
+  "dep:tracing-subscriber",
+]

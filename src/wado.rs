@@ -3,6 +3,10 @@ use dicom_json::DicomJson;
 use dicom_object::{from_reader, FileDicomObject, InMemDicomObject};
 
 use futures_util::{Stream, StreamExt};
+use mediatype::{
+    names::{APPLICATION, JSON},
+    MediaType, Name,
+};
 use multipart_rs::{MultipartItem, MultipartReader, MultipartType};
 use snafu::{OptionExt, ResultExt};
 
@@ -48,14 +52,21 @@ impl WadoMetadataRequest {
         }
 
         // Check if the response is a DICOM-JSON
-        if let Some(ct) = response.headers().get("Content-Type") {
-            if ct != "application/dicom+json" {
-                return Err(DicomWebError::UnexpectedContentType {
-                    content_type: ct.to_str().unwrap_or_default().to_string(),
-                });
-            }
-        } else {
-            return Err(DicomWebError::MissingContentTypeHeader);
+        let ct = response
+            .headers()
+            .get("Content-Type")
+            .ok_or(DicomWebError::MissingContentTypeHeader)?;
+        let media_type = MediaType::parse(ct.to_str().unwrap_or_default())
+            .map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
+
+        // Check if we have a DICOM-JSON or JSON content type
+        if media_type.essence() != MediaType::new(APPLICATION, JSON)
+            && media_type.essence()
+                != MediaType::from_parts(APPLICATION, Name::new_unchecked("dicom"), Some(JSON), &[])
+        {
+            return Err(DicomWebError::UnexpectedContentType {
+                content_type: ct.to_str().unwrap_or_default().to_string(),
+            });
         }
 
         Ok(response
@@ -128,19 +139,29 @@ impl WadoFileRequest {
         Ok(reader.map(|item| {
             let item = item.context(MultipartReaderFailedSnafu)?;
             // Get the Content-Type header
-            let content_type = item
+            let ct = item
                 .headers
                 .iter()
                 .find(|(k, _)| k.to_lowercase() == "content-type")
                 .map(|(_, v)| v.as_str())
                 .context(MissingContentTypeHeaderSnafu)?;
+            let media_type = MediaType::parse(ct)
+                .map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
 
-            if content_type != "application/dicom" {
+            // Check if we have a DICOM-JSON or JSON content type
+            if media_type.essence() != MediaType::new(APPLICATION, JSON)
+                && media_type.essence()
+                    != MediaType::from_parts(
+                        APPLICATION,
+                        Name::new_unchecked("dicom"),
+                        Some(JSON),
+                        &[],
+                    )
+            {
                 return Err(DicomWebError::UnexpectedContentType {
-                    content_type: content_type.to_string(),
+                    content_type: ct.to_owned(),
                 });
             }
-
             from_reader(&*item.data).context(DicomReaderFailedSnafu)
         }))
     }
