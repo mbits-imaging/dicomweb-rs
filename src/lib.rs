@@ -48,6 +48,7 @@
 //!   }
 //! }
 //! ```
+use mediatype::MediaTypeError;
 use multipart_rs::MultipartType;
 use reqwest::StatusCode;
 use snafu::Snafu;
@@ -94,7 +95,7 @@ pub enum DicomWebError {
     #[snafu(display("Unexpected content type: {}", content_type))]
     UnexpectedContentType { content_type: String },
     #[snafu(display("Failed to parse content type: {}", source))]
-    ContentTypeParseFailed { source: mime::FromStrError },
+    ContentTypeParseFailed { source: MediaTypeError },
     #[snafu(display("Unexpected multipart type: {:?}", multipart_type))]
     UnexpectedMultipartType { multipart_type: MultipartType },
     #[snafu(display("Empty response"))]

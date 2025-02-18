@@ -2,6 +2,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use dicom_dump::DumpOptions;
 use dicom_web::DicomWebClient;
 use tracing::{error, Level};
 
@@ -11,6 +12,8 @@ const ERROR_READ: i32 = -2;
 const ERROR_TRANSCODE: i32 = -3;
 /// Exit code for when an error emerged while writing the file.
 const ERROR_WRITE: i32 = -4;
+/// Exit code for when an error emerged while dumping the output.
+const ERROR_DUMP: i32 = -5;
 /// Exit code for when an error emerged while writing the file.
 const ERROR_OTHER: i32 = -128;
 
@@ -105,7 +108,7 @@ async fn main() {
                 DicomLevel::Instance => client.query_instances(),
             };
 
-            builder
+            let results = builder
                 .with_fuzzymatching(fuzzy_matching)
                 .run()
                 .await
@@ -113,6 +116,16 @@ async fn main() {
                     eprintln!("Error: {:?}", e);
                     std::process::exit(ERROR_OTHER);
                 });
+
+            let mut i = 0;
+            for dcm in results {
+                println!("DICOM object #{}", i);
+                DumpOptions::new().dump_object(&dcm).unwrap_or_else(|e| {
+                    eprintln!("Error: {:?}", e);
+                    std::process::exit(ERROR_DUMP);
+                });
+                i += 1;
+            }
         }
         Mode::Wado {} => {
             println!("WADO-RS mode");

@@ -3,6 +3,10 @@ use dicom_core::Tag;
 use dicom_json::DicomJson;
 use dicom_object::InMemDicomObject;
 
+use mediatype::{
+    names::{APPLICATION, JSON},
+    MediaType, Name,
+};
 use snafu::ResultExt;
 
 use crate::{DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu};
@@ -80,14 +84,21 @@ impl QidoRequest {
         }
 
         // Check if the response is a DICOM-JSON
-        if let Some(ct) = response.headers().get("Content-Type") {
-            if ct != "application/dicom+json" && ct != "application/json" {
-                return Err(DicomWebError::UnexpectedContentType {
-                    content_type: ct.to_str().unwrap_or_default().to_string(),
-                });
-            }
-        } else {
-            return Err(DicomWebError::MissingContentTypeHeader);
+        let ct = response
+            .headers()
+            .get("Content-Type")
+            .ok_or(DicomWebError::MissingContentTypeHeader)?;
+        let media_type = MediaType::parse(ct.to_str().unwrap_or_default())
+            .map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
+
+        // Check if we have a DICOM-JSON or JSON content type
+        if media_type.essence() != MediaType::new(APPLICATION, JSON)
+            && media_type.essence()
+                != MediaType::from_parts(APPLICATION, Name::new_unchecked("dicom"), Some(JSON), &[])
+        {
+            return Err(DicomWebError::UnexpectedContentType {
+                content_type: ct.to_str().unwrap_or_default().to_string(),
+            });
         }
 
         Ok(response
