@@ -55,15 +55,15 @@ use snafu::Snafu;
 
 mod mwl;
 mod qido;
+mod stow;
 mod wado;
-
 /// The DICOMweb client for querying and retrieving DICOM objects.
 /// Can be reused for multiple requests.
 #[derive(Debug, Clone)]
 pub struct DicomWebClient {
     wado_url: String,
     qido_url: String,
-    _stow_url: String,
+    stow_url: String,
 
     // Basic Auth
     pub(crate) username: Option<String>,
@@ -121,7 +121,7 @@ impl DicomWebClient {
         DicomWebClient {
             wado_url: url.to_string(),
             qido_url: url.to_string(),
-            _stow_url: url.to_string(),
+            stow_url: url.to_string(),
             client: reqwest::Client::new(),
             bearer_token: None,
             username: None,
@@ -134,7 +134,7 @@ impl DicomWebClient {
         DicomWebClient {
             wado_url: wado_url.to_string(),
             qido_url: qido_url.to_string(),
-            _stow_url: stow_url.to_string(),
+            stow_url: stow_url.to_string(),
             client: reqwest::Client::new(),
             bearer_token: None,
             username: None,

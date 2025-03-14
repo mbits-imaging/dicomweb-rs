@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use dicom_dump::DumpOptions;
+use dicom_object::FileDicomObject;
 use dicom_web::DicomWebClient;
 use tracing::{error, Level};
 
@@ -39,7 +40,16 @@ enum Mode {
     /// Perform a WADO-RS operation.
     Wado {},
     /// Perform a STOW-RS operation.
-    Stow {},
+    Stow {
+        /// The study instance UID
+        /// If not provided, store without any checks
+        #[clap(long = "study")]
+        study_uid: Option<String>,
+
+        /// The instances paths
+        #[clap(long = "instances")]
+        instances: Vec<PathBuf>,
+    },
     /// Perform a MWL-RS operation.
     Mwl {},
 }
@@ -130,7 +140,35 @@ async fn main() {
         Mode::Wado {} => {
             println!("WADO-RS mode");
         }
-        Mode::Stow {} => {
+        Mode::Stow {
+            study_uid,
+            instances,
+        } => {
+            let mut builder = match study_uid {
+                Some(study_uid) => client.store_instances_in_study(&study_uid),
+                None => client.store_instances(),
+            };
+
+            // Open all instances as DICOM
+            let instances: Vec<_> = instances
+                .into_iter()
+                .map(|path| {
+                    dicom_object::open_file(path).unwrap_or_else(|e| {
+                        eprintln!("Error: {:?}", e);
+                        std::process::exit(ERROR_READ);
+                    })
+                })
+                .collect();
+
+            // Store the instances
+            builder
+                .with_instances(instances)
+                .run()
+                .await
+                .unwrap_or_else(|e| {
+                    eprintln!("Error: {:?}", e);
+                    std::process::exit(ERROR_OTHER);
+                });
             println!("STOW-RS mode");
         }
         Mode::Mwl {} => {
