@@ -144,7 +144,7 @@ async fn main() {
             study_uid,
             instances,
         } => {
-            let mut builder = match study_uid {
+            let builder = match study_uid {
                 Some(study_uid) => client.store_instances_in_study(&study_uid),
                 None => client.store_instances(),
             };
