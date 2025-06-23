@@ -66,7 +66,7 @@ impl WadoStowRequest {
         let response = request
             .header(
                 "Content-Type",
-                format!("multipart/related; boundary={}", boundary),
+                format!("multipart/related; type=\"application/dicom\"; boundary={}", boundary),
             )
             .body(multipart_buffer)
             .send()
