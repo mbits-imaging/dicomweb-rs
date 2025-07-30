@@ -14,28 +14,28 @@ path = "src/bin/dicom-web.rs"
 required-features = ["cli"]
 
 [dependencies]
-dicom-core = "0.8.1"
-dicom-json = "0.8.1"
-dicom-object = "0.8.1"
+dicom-core = "0.8.2"
+dicom-json = "0.8.2"
+dicom-object = "0.8.2"
 futures-util = "0.3.31"
 mediatype = "0.19.20"
 multipart-rs = "0.2.1"
-rand = "0.9.1"
-reqwest = { version = "0.12.15", default-features = false, features = ["json", "stream", "rustls-tls", "http2"] }
-serde_json = { version = "1.0.140", features = ["preserve_order"] }
-snafu = "0.8.5"
+rand = "0.9.2"
+reqwest = { version = "0.12.22", default-features = false, features = ["json", "stream", "rustls-tls", "http2"] }
+serde_json = { version = "1.0.141", features = ["preserve_order"] }
+snafu = "0.8.6"
 
 [dependencies.clap]
-version = "4.5.37"
+version = "4.5.42"
 optional = true
 features = ["cargo", "derive"]
 
 [dependencies.dicom-dump]
-version = "0.8.0"
+version = "0.8.1"
 optional = true
 
 [dependencies.tokio]
-version = "1.45.0"
+version = "1.47.0"
 optional = true
 features = ["macros", "rt-multi-thread"]
 
@@ -48,9 +48,9 @@ version = "0.3.19"
 optional = true
 
 [dev-dependencies]
-dicom-dictionary-std = "0.8.0"
-tokio = { version = "1.45.0", features = ["macros"] }
-wiremock = "0.6.3"
+dicom-dictionary-std = "0.8.1"
+tokio = { version = "1.47.0", features = ["macros"] }
+wiremock = "0.6.4"
 
 [features]
 # enable command line tools
