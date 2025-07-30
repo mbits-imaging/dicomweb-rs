@@ -9,13 +9,13 @@ use snafu::ResultExt;
 use crate::{DicomWebClient, DicomWebError, RequestFailedSnafu};
 
 /// A builder type for STOW-RS requests
-pub struct WadoStowRequest<'a> {
+pub struct WadoStowRequest {
     client: DicomWebClient,
     url: String,
-    instances: BoxStream<'a, FileDicomObject<InMemDicomObject>>,
+    instances: BoxStream<'static, FileDicomObject<InMemDicomObject>>,
 }
 
-impl<'a> WadoStowRequest<'a> {
+impl WadoStowRequest {
     fn new(client: DicomWebClient, url: String) -> Self {
         WadoStowRequest {
             client,
@@ -26,13 +26,13 @@ impl<'a> WadoStowRequest<'a> {
 
     pub fn with_instances(
         mut self,
-        instances: impl Stream<Item = FileDicomObject<InMemDicomObject>> + Send + 'a,
+        instances: impl Stream<Item = FileDicomObject<InMemDicomObject>> + Send + 'static,
     ) -> Self {
         self.instances = instances.boxed();
         self
     }
 
-    pub async fn run(&mut self) -> Result<(), DicomWebError> {
+    pub async fn run(self) -> Result<(), DicomWebError> {
         let mut request = self.client.client.post(&self.url);
 
         // Basic authentication
@@ -50,33 +50,37 @@ impl<'a> WadoStowRequest<'a> {
             .map(char::from)
             .collect();
 
-        let mut multipart_buffer = vec![];
-        // Read from the instances stream and build the multipart body
-        while let Some(instance) = self.instances.next().await {
+        let request = request.header(
+            "Content-Type",
+            format!(
+                "multipart/related; type=\"application/dicom\"; boundary={}",
+                boundary
+            ),
+        );
+
+        let boundary_clone = boundary.clone();
+
+        // Convert each instance to a multipart item
+        let multipart_stream = self.instances.map(move |instance| {
+            let mut multipart_item = Vec::new();
             let mut buffer = Vec::new();
-            instance.write_all(&mut buffer).unwrap();
-            multipart_buffer.extend_from_slice(b"--");
-            multipart_buffer.extend_from_slice(boundary.as_bytes());
-            multipart_buffer.extend_from_slice(b"\r\n");
-            multipart_buffer.extend_from_slice(b"Content-Type: application/dicom\r\n\r\n");
-            multipart_buffer.extend_from_slice(&buffer);
-            multipart_buffer.extend_from_slice(b"\r\n");
-        }
+            instance.clone().write_all(&mut buffer).unwrap();
+            multipart_item.extend_from_slice(b"--");
+            multipart_item.extend_from_slice(boundary.as_bytes());
+            multipart_item.extend_from_slice(b"\r\n");
+            multipart_item.extend_from_slice(b"Content-Type: application/dicom\r\n\r\n");
+            multipart_item.extend_from_slice(&buffer);
+            multipart_item.extend_from_slice(b"\r\n");
+            Ok::<_, std::io::Error>(multipart_item)
+        });
 
         // Write the final boundary
-        multipart_buffer.extend_from_slice(b"--");
-        multipart_buffer.extend_from_slice(boundary.as_bytes());
-        multipart_buffer.extend_from_slice(b"--\r\n");
+        let multipart_stream = multipart_stream.chain(futures_util::stream::once(async move {
+            Ok(format!("--{}--\r\n", boundary_clone).into_bytes())
+        }));
 
         let response = request
-            .header(
-                "Content-Type",
-                format!(
-                    "multipart/related; type=\"application/dicom\"; boundary={}",
-                    boundary
-                ),
-            )
-            .body(multipart_buffer)
+            .body(Body::wrap_stream(multipart_stream))
             .send()
             .await
             .context(RequestFailedSnafu { url: &self.url })?;

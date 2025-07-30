@@ -145,6 +145,8 @@ impl DicomWebClient {
 
 #[cfg(test)]
 mod tests {
+    use dicom_dictionary_std::uids;
+    use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
     use serde_json::json;
     use wiremock::MockServer;
 
@@ -253,11 +255,21 @@ mod tests {
         mock_server.register(mock).await;
     }
 
+    async fn mock_stow(mock_server: &MockServer) {
+        // STUDIES endpoint for STOW-RS
+        let mock = wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::header_exists("Content-Type"))
+            .and(wiremock::matchers::path("/studies"))
+            .respond_with(wiremock::ResponseTemplate::new(201));
+        mock_server.register(mock).await;
+    }
+
     // Create a DICOMWeb mock server
     async fn start_dicomweb_mock_server() -> MockServer {
         let mock_server = MockServer::start().await;
         mock_qido(&mock_server).await;
         mock_wado(&mock_server).await;
+        mock_stow(&mock_server).await;
         mock_server
     }
 
@@ -417,6 +429,29 @@ mod tests {
             )
             .run()
             .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn store_instances_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let mut client = DicomWebClient::with_single_url(&mock_server.uri());
+        client.set_basic_auth("orthanc", "orthanc");
+        // Create new empty DICOM instance
+        let instance = InMemDicomObject::new_empty()
+            .with_meta(
+                FileMetaTableBuilder::new()
+                    // Implicit VR Little Endian
+                    .transfer_syntax(uids::IMPLICIT_VR_LITTLE_ENDIAN)
+                    // Computed Radiography image storage
+                    .media_storage_sop_class_uid("1.2.840.10008.5.1.4.1.1.1"),
+            )
+            .unwrap();
+        // Create a stream with the instance
+        let stream = futures_util::stream::once(async move { instance });
+
+        // Perform WADO-RS request
+        let result = client.store_instances().with_instances(stream).run().await;
         assert!(result.is_ok());
     }
 }

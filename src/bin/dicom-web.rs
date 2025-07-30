@@ -160,9 +160,12 @@ async fn main() {
                 })
                 .collect();
 
+            // Create a stream of instances
+            let instance_stream = futures_util::stream::iter(instances);
+
             // Store the instances
             builder
-                .with_instances(instances)
+                .with_instances(instance_stream)
                 .run()
                 .await
                 .unwrap_or_else(|e| {
