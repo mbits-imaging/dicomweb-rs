@@ -1,34 +1,38 @@
 //! Module for WADO-RS requests
 use dicom_object::{FileDicomObject, InMemDicomObject};
 
+use futures_util::{stream::BoxStream, Stream, StreamExt};
 use rand::{distr::Alphanumeric, Rng};
+use reqwest::Body;
 use snafu::ResultExt;
 
 use crate::{DicomWebClient, DicomWebError, RequestFailedSnafu};
 
 /// A builder type for STOW-RS requests
-#[derive(Debug, Clone)]
-pub struct WadoStowRequest {
+pub struct WadoStowRequest<'a> {
     client: DicomWebClient,
     url: String,
-    instances: Vec<FileDicomObject<InMemDicomObject>>,
+    instances: BoxStream<'a, FileDicomObject<InMemDicomObject>>,
 }
 
-impl WadoStowRequest {
+impl<'a> WadoStowRequest<'a> {
     fn new(client: DicomWebClient, url: String) -> Self {
         WadoStowRequest {
             client,
             url,
-            instances: Vec::new(),
+            instances: futures_util::stream::empty().boxed(),
         }
     }
 
-    pub fn with_instances(mut self, instances: Vec<FileDicomObject<InMemDicomObject>>) -> Self {
-        self.instances = instances;
+    pub fn with_instances(
+        mut self,
+        instances: impl Stream<Item = FileDicomObject<InMemDicomObject>> + Send + 'a,
+    ) -> Self {
+        self.instances = instances.boxed();
         self
     }
 
-    pub async fn run(&self) -> Result<(), DicomWebError> {
+    pub async fn run(&mut self) -> Result<(), DicomWebError> {
         let mut request = self.client.client.post(&self.url);
 
         // Basic authentication
@@ -47,17 +51,18 @@ impl WadoStowRequest {
             .collect();
 
         let mut multipart_buffer = vec![];
-        for instance in &self.instances {
+        // Read from the instances stream and build the multipart body
+        while let Some(instance) = self.instances.next().await {
             let mut buffer = Vec::new();
             instance.write_all(&mut buffer).unwrap();
             multipart_buffer.extend_from_slice(b"--");
             multipart_buffer.extend_from_slice(boundary.as_bytes());
             multipart_buffer.extend_from_slice(b"\r\n");
             multipart_buffer.extend_from_slice(b"Content-Type: application/dicom\r\n\r\n");
-
             multipart_buffer.extend_from_slice(&buffer);
             multipart_buffer.extend_from_slice(b"\r\n");
         }
+
         // Write the final boundary
         multipart_buffer.extend_from_slice(b"--");
         multipart_buffer.extend_from_slice(boundary.as_bytes());
@@ -66,7 +71,10 @@ impl WadoStowRequest {
         let response = request
             .header(
                 "Content-Type",
-                format!("multipart/related; type=\"application/dicom\"; boundary={}", boundary),
+                format!(
+                    "multipart/related; type=\"application/dicom\"; boundary={}",
+                    boundary
+                ),
             )
             .body(multipart_buffer)
             .send()
