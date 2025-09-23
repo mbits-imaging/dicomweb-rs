@@ -1,7 +1,9 @@
 //! Module for WADO-RS requests
+use std::sync::atomic::AtomicU32;
+
 use dicom_object::{FileDicomObject, InMemDicomObject};
 
-use futures_util::{stream::BoxStream, Stream, StreamExt};
+use futures_util::{future, stream::BoxStream, Stream, StreamExt};
 use rand::{distr::Alphanumeric, Rng};
 use reqwest::Body;
 use snafu::ResultExt;
@@ -12,7 +14,7 @@ use crate::{DicomWebClient, DicomWebError, RequestFailedSnafu};
 pub struct WadoStowRequest {
     client: DicomWebClient,
     url: String,
-    instances: BoxStream<'static, FileDicomObject<InMemDicomObject>>,
+    instances: BoxStream<'static, Result<Vec<u8>, std::io::Error>>,
 }
 
 impl WadoStowRequest {
@@ -24,11 +26,24 @@ impl WadoStowRequest {
         }
     }
 
+    pub fn with_data(mut self, data: impl Stream<Item = Vec<u8>> + Send + 'static) -> Self {
+        self.instances = data.map(|d| Ok(d)).boxed();
+        self
+    }
+
     pub fn with_instances(
         mut self,
         instances: impl Stream<Item = FileDicomObject<InMemDicomObject>> + Send + 'static,
     ) -> Self {
-        self.instances = instances.boxed();
+        self.instances = instances
+            .map(|instance| {
+                let mut buffer = Vec::new();
+                instance.write_all(&mut buffer).map_err(|e| {
+                    std::io::Error::other(format!("Failed to serialize DICOM instance: {}", e))
+                })?;
+                Ok(buffer)
+            })
+            .boxed();
         self
     }
 
@@ -61,10 +76,9 @@ impl WadoStowRequest {
         let boundary_clone = boundary.clone();
 
         // Convert each instance to a multipart item
-        let multipart_stream = self.instances.map(move |instance| {
+        let multipart_stream = self.instances.map(move |data| {
             let mut multipart_item = Vec::new();
-            let mut buffer = Vec::new();
-            instance.clone().write_all(&mut buffer).unwrap();
+            let buffer = data?;
             multipart_item.extend_from_slice(b"--");
             multipart_item.extend_from_slice(boundary.as_bytes());
             multipart_item.extend_from_slice(b"\r\n");
