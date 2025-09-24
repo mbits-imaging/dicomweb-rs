@@ -119,10 +119,10 @@ impl DicomWebClient {
         self
     }
 
-    pub fn add_header(&mut self, key: &str, value: &str) -> Result<&Self, std::io::Error> {
+    pub fn add_header(&mut self, key: &str, value: &str) -> &Self {
         self.extra_headers
             .insert(key.to_string(), value.to_string());
-        Ok(self)
+        self
     }
 
     /// Create a new DICOMWeb client with the same URL for all services (WADO-RS, QIDO-RS, STOW-RS).
