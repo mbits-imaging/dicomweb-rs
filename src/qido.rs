@@ -72,6 +72,11 @@ impl QidoRequest {
             request = request.bearer_auth(bearer_token);
         }
 
+        // Extra headers
+        for (key, value) in &self.client.extra_headers {
+            request = request.header(key, value);
+        }
+
         let response = request
             .send()
             .await

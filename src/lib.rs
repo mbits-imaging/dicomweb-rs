@@ -52,6 +52,7 @@ use mediatype::MediaTypeError;
 use multipart_rs::MultipartType;
 use reqwest::StatusCode;
 use snafu::Snafu;
+use std::collections::HashMap;
 
 mod mwl;
 mod qido;
@@ -70,6 +71,8 @@ pub struct DicomWebClient {
     pub(crate) password: Option<String>,
     // Bearer Token
     pub(crate) bearer_token: Option<String>,
+    // Headers
+    pub(crate) extra_headers: HashMap<String, String>,
 
     pub(crate) client: reqwest::Client,
 }
@@ -116,6 +119,12 @@ impl DicomWebClient {
         self
     }
 
+    pub fn add_header(&mut self, key: &str, value: &str) -> Result<&Self, std::io::Error> {
+        self.extra_headers
+            .insert(key.to_string(), value.to_string());
+        Ok(self)
+    }
+
     /// Create a new DICOMWeb client with the same URL for all services (WADO-RS, QIDO-RS, STOW-RS).
     pub fn with_single_url(url: &str) -> DicomWebClient {
         DicomWebClient {
@@ -123,6 +132,7 @@ impl DicomWebClient {
             qido_url: url.to_string(),
             stow_url: url.to_string(),
             client: reqwest::Client::new(),
+            extra_headers: HashMap::new(),
             bearer_token: None,
             username: None,
             password: None,
@@ -135,6 +145,7 @@ impl DicomWebClient {
             wado_url: wado_url.to_string(),
             qido_url: qido_url.to_string(),
             stow_url: stow_url.to_string(),
+            extra_headers: HashMap::new(),
             client: reqwest::Client::new(),
             bearer_token: None,
             username: None,

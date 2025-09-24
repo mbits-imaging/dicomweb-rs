@@ -25,7 +25,7 @@ impl WadoStowRequest {
     }
 
     pub fn with_data(mut self, data: impl Stream<Item = Vec<u8>> + Send + 'static) -> Self {
-        self.instances = data.map(|d| Ok(d)).boxed();
+        self.instances = data.map(Ok).boxed();
         self
     }
 
@@ -55,6 +55,11 @@ impl WadoStowRequest {
         // Bearer token
         else if let Some(bearer_token) = &self.client.bearer_token {
             request = request.bearer_auth(bearer_token);
+        }
+
+        // Extra headers
+        for (key, value) in &self.client.extra_headers {
+            request = request.header(key, value);
         }
 
         let boundary: String = rand::rng()
