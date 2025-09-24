@@ -1,9 +1,7 @@
-//! Module for WADO-RS requests
-use std::sync::atomic::AtomicU32;
-
+//! Module for STOW-RS requests
 use dicom_object::{FileDicomObject, InMemDicomObject};
 
-use futures_util::{future, stream::BoxStream, Stream, StreamExt};
+use futures_util::{stream::BoxStream, Stream, StreamExt};
 use rand::{distr::Alphanumeric, Rng};
 use reqwest::Body;
 use snafu::ResultExt;
