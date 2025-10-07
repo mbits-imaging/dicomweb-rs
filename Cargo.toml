@@ -1,6 +1,6 @@
 [package]
 name = "dicom-web"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["Stephan Vedder <stephan.vedder@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -14,11 +14,11 @@ path = "src/bin/dicom-web.rs"
 required-features = ["cli"]
 
 [dependencies]
-dicom-core = "0.8.2"
-dicom-json = "0.8.2"
-dicom-object = "0.8.2"
+dicom-core = "0.9.0"
+dicom-json = "0.9.0"
+dicom-object = "0.9.0"
 futures-util = "0.3.31"
-mediatype = "0.19.20"
+mediatype = "0.20.0"
 multipart-rs = "0.2.1"
 rand = "0.9.2"
 reqwest = { version = "0.12.23", default-features = false, features = ["json", "stream", "rustls-tls", "http2"] }
@@ -31,7 +31,7 @@ optional = true
 features = ["cargo", "derive"]
 
 [dependencies.dicom-dump]
-version = "0.8.1"
+version = "0.9.0"
 optional = true
 
 [dependencies.tokio]
@@ -48,7 +48,7 @@ version = "0.3.20"
 optional = true
 
 [dev-dependencies]
-dicom-dictionary-std = "0.8.1"
+dicom-dictionary-std = "0.9.0"
 tokio = { version = "1.47.1", features = ["macros"] }
 wiremock = "0.6.5"
 
