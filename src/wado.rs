@@ -1,16 +1,14 @@
 //! Module for WADO-RS requests
+//! See https://dicom.nema.org/medical/dicom/current/output/html/part18.html#sect_10.4
 use dicom_json::DicomJson;
 use dicom_object::{from_reader, FileDicomObject, InMemDicomObject};
 
 use futures_util::{Stream, StreamExt};
-use mediatype::{
-    names::{APPLICATION, JSON},
-    MediaType, Name,
-};
 use multipart_rs::{MultipartItem, MultipartReader, MultipartType};
 use snafu::{OptionExt, ResultExt};
 
 use crate::{
+    apply_auth_and_headers, validate_dicom_json_content_type, validate_multipart_item_content_type,
     DeserializationFailedSnafu, DicomReaderFailedSnafu, DicomWebClient, DicomWebError,
     EmptyResponseSnafu, MissingContentTypeHeaderSnafu, MultipartReaderFailedSnafu,
     RequestFailedSnafu,
@@ -30,20 +28,7 @@ impl WadoMetadataRequest {
 
     pub async fn run(&self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
         let mut request = self.client.client.get(&self.url);
-
-        // Basic authentication
-        if let Some(username) = &self.client.username {
-            request = request.basic_auth(username, self.client.password.as_ref());
-        }
-        // Bearer token
-        else if let Some(bearer_token) = &self.client.bearer_token {
-            request = request.bearer_auth(bearer_token);
-        }
-
-        // Extra headers
-        for (key, value) in &self.client.extra_headers {
-            request = request.header(key, value);
-        }
+        request = apply_auth_and_headers(request, &self.client);
 
         let response = request
             .send()
@@ -61,18 +46,7 @@ impl WadoMetadataRequest {
             .headers()
             .get("Content-Type")
             .ok_or(DicomWebError::MissingContentTypeHeader)?;
-        let media_type = MediaType::parse(ct.to_str().unwrap_or_default())
-            .map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
-
-        // Check if we have a DICOM-JSON or JSON content type
-        if media_type.essence() != MediaType::new(APPLICATION, JSON)
-            && media_type.essence()
-                != MediaType::from_parts(APPLICATION, Name::new_unchecked("dicom"), Some(JSON), &[])
-        {
-            return Err(DicomWebError::UnexpectedContentType {
-                content_type: ct.to_str().unwrap_or_default().to_string(),
-            });
-        }
+        validate_dicom_json_content_type(ct.to_str().unwrap_or_default())?;
 
         Ok(response
             .json::<Vec<DicomJson<InMemDicomObject>>>()
@@ -92,7 +66,7 @@ pub struct WadoFileRequest {
 }
 
 impl WadoFileRequest {
-    pub fn new(client: DicomWebClient, url: String) -> Self {
+    fn new(client: DicomWebClient, url: String) -> Self {
         WadoFileRequest { client, url }
     }
 
@@ -103,15 +77,7 @@ impl WadoFileRequest {
         DicomWebError,
     > {
         let mut request = self.client.client.get(&self.url);
-
-        // Basic authentication
-        if let Some(username) = &self.client.username {
-            request = request.basic_auth(username, self.client.password.as_ref());
-        }
-        // Bearer token
-        else if let Some(bearer_token) = &self.client.bearer_token {
-            request = request.bearer_auth(bearer_token);
-        }
+        request = apply_auth_and_headers(request, &self.client);
 
         let response = request
             .send()
@@ -137,7 +103,7 @@ impl WadoFileRequest {
 
         if reader.multipart_type != MultipartType::Related {
             return Err(DicomWebError::UnexpectedMultipartType {
-                multipart_type: (reader.multipart_type),
+                multipart_type: reader.multipart_type,
             });
         }
 
@@ -150,23 +116,7 @@ impl WadoFileRequest {
                 .find(|(k, _)| k.to_lowercase() == "content-type")
                 .map(|(_, v)| v.as_str())
                 .context(MissingContentTypeHeaderSnafu)?;
-            let media_type = MediaType::parse(ct)
-                .map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
-
-            // Check if we have a DICOM-JSON or JSON content type
-            if media_type.essence() != MediaType::new(APPLICATION, JSON)
-                && media_type.essence()
-                    != MediaType::from_parts(
-                        APPLICATION,
-                        Name::new_unchecked("dicom"),
-                        Some(JSON),
-                        &[],
-                    )
-            {
-                return Err(DicomWebError::UnexpectedContentType {
-                    content_type: ct.to_owned(),
-                });
-            }
+            validate_multipart_item_content_type(ct)?;
             from_reader(&*item.data).context(DicomReaderFailedSnafu)
         }))
     }
@@ -192,21 +142,13 @@ pub struct WadoFramesRequest {
 }
 
 impl WadoFramesRequest {
-    pub fn new(client: DicomWebClient, url: String) -> Self {
+    fn new(client: DicomWebClient, url: String) -> Self {
         WadoFramesRequest { client, url }
     }
 
     pub async fn run(&self) -> Result<Vec<MultipartItem>, DicomWebError> {
         let mut request = self.client.client.get(&self.url);
-
-        // Basic authentication
-        if let Some(username) = &self.client.username {
-            request = request.basic_auth(username, self.client.password.as_ref());
-        }
-        // Bearer token
-        else if let Some(bearer_token) = &self.client.bearer_token {
-            request = request.bearer_auth(bearer_token);
-        }
+        request = apply_auth_and_headers(request, &self.client);
 
         let response = request
             .send()
@@ -231,7 +173,7 @@ impl WadoFramesRequest {
 
         if reader.multipart_type != MultipartType::Related {
             return Err(DicomWebError::UnexpectedMultipartType {
-                multipart_type: (reader.multipart_type),
+                multipart_type: reader.multipart_type,
             });
         }
 

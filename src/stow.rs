@@ -1,4 +1,6 @@
 //! Module for STOW-RS requests
+//! See https://dicom.nema.org/medical/dicom/current/output/html/part18.html#sect_10.5
+use dicom_json::DicomJson;
 use dicom_object::{FileDicomObject, InMemDicomObject};
 
 use futures_util::{stream::BoxStream, Stream, StreamExt};
@@ -6,18 +8,21 @@ use rand::{distr::Alphanumeric, Rng};
 use reqwest::Body;
 use snafu::ResultExt;
 
-use crate::{DicomWebClient, DicomWebError, RequestFailedSnafu};
+use crate::{
+    apply_auth_and_headers, validate_dicom_json_content_type, DeserializationFailedSnafu,
+    DicomWebClient, DicomWebError, RequestFailedSnafu,
+};
 
 /// A builder type for STOW-RS requests
-pub struct WadoStowRequest {
+pub struct StowRequest {
     client: DicomWebClient,
     url: String,
     instances: BoxStream<'static, Result<Vec<u8>, std::io::Error>>,
 }
 
-impl WadoStowRequest {
+impl StowRequest {
     fn new(client: DicomWebClient, url: String) -> Self {
-        WadoStowRequest {
+        StowRequest {
             client,
             url,
             instances: futures_util::stream::empty().boxed(),
@@ -45,22 +50,9 @@ impl WadoStowRequest {
         self
     }
 
-    pub async fn run(self) -> Result<(), DicomWebError> {
+    pub async fn run(self) -> Result<InMemDicomObject, DicomWebError> {
         let mut request = self.client.client.post(&self.url);
-
-        // Basic authentication
-        if let Some(username) = &self.client.username {
-            request = request.basic_auth(username, self.client.password.as_ref());
-        }
-        // Bearer token
-        else if let Some(bearer_token) = &self.client.bearer_token {
-            request = request.bearer_auth(bearer_token);
-        }
-
-        // Extra headers
-        for (key, value) in &self.client.extra_headers {
-            request = request.header(key, value);
-        }
+        request = apply_auth_and_headers(request, &self.client);
 
         let boundary: String = rand::rng()
             .sample_iter(&Alphanumeric)
@@ -108,20 +100,32 @@ impl WadoStowRequest {
             });
         }
 
-        Ok(())
+        // Check if the response is a DICOM-JSON
+        let ct = response
+            .headers()
+            .get("Content-Type")
+            .ok_or(DicomWebError::MissingContentTypeHeader)?;
+        validate_dicom_json_content_type(ct.to_str().unwrap_or_default())?;
+
+        // STOW-RS response is a single DICOM JSON dataset (PS3.18 §10.5.1)
+        Ok(response
+            .json::<DicomJson<InMemDicomObject>>()
+            .await
+            .context(DeserializationFailedSnafu {})?
+            .into_inner())
     }
 }
 
 impl DicomWebClient {
     /// Create a STOW-RS request to store instances
-    pub fn store_instances(&self) -> WadoStowRequest {
+    pub fn store_instances(&self) -> StowRequest {
         let url = format!("{}/studies", self.stow_url);
-        WadoStowRequest::new(self.clone(), url)
+        StowRequest::new(self.clone(), url)
     }
 
-    /// Create a WADO-RS request to retrieve the metadata of a specific study
-    pub fn store_instances_in_study(&self, study_instance_uid: &str) -> WadoStowRequest {
+    /// Create a STOW-RS request to store instances in a specific study
+    pub fn store_instances_in_study(&self, study_instance_uid: &str) -> StowRequest {
         let url = format!("{}/studies/{}", self.stow_url, study_instance_uid);
-        WadoStowRequest::new(self.clone(), url)
+        StowRequest::new(self.clone(), url)
     }
 }

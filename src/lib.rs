@@ -1,7 +1,6 @@
 //! This crate contains a DICOMweb client for querying and retrieving DICOM objects.
 //!
-//! It supports the QIDO-RS and WADO-RS DICOMweb services, which are used to query and retrieve DICOM objects respectively.
-//! As of now, the STOW-RS service is not supported.
+//! It supports the QIDO-RS, WADO-RS, STOW-RS and MWL-RS DICOMweb services for querying, retrieving, and storing DICOM objects.
 //! The HTTP requests are made using the reqwest crate, which is a high-level HTTP client for Rust.
 //!
 //! # Examples
@@ -48,7 +47,9 @@
 //!   }
 //! }
 //! ```
-use mediatype::MediaTypeError;
+use dicom_core::ops::{AttributeSelector, AttributeSelectorStep};
+use mediatype::names::{APPLICATION, DICOM, JSON, OCTET_STREAM};
+use mediatype::{MediaType, MediaTypeError};
 use multipart_rs::MultipartType;
 use reqwest::StatusCode;
 use snafu::Snafu;
@@ -154,14 +155,133 @@ impl DicomWebClient {
     }
 }
 
+/// Helper function to convert an AttributeSelector to a string for use in query parameters
+pub(crate) fn selector_to_string(selector: &AttributeSelector) -> String {
+    let mut result = String::new();
+
+    for step in selector.iter() {
+        // If this is not the first step, we need to add a dot separator
+        if !result.is_empty() {
+            result.push_str(".");
+        }
+
+        match step {
+            AttributeSelectorStep::Tag(tag) => {
+                result.push_str(&format!("{:04x}{:04x}", tag.group(), tag.element()));
+            }
+            AttributeSelectorStep::Nested { tag, item } => {
+                if *item == 0 {
+                    // If the item index is 0, we can omit it (it defaults to 1 in DICOMweb)
+                    result.push_str(&format!("{:04x}{:04x}", tag.group(), tag.element()));
+                } else {
+                    result.push_str(&format!(
+                        "{:04x}{:04x}[{}]",
+                        tag.group(),
+                        tag.element(),
+                        item
+                    ));
+                }
+            }
+        }
+    }
+    result
+}
+
+/// Helper function to apply authentication and extra headers to a request
+pub(crate) fn apply_auth_and_headers(
+    mut request: reqwest::RequestBuilder,
+    client: &DicomWebClient,
+) -> reqwest::RequestBuilder {
+    // Basic authentication
+    if let Some(username) = &client.username {
+        request = request.basic_auth(username, client.password.as_ref());
+    }
+    // Bearer token (only if no basic auth)
+    else if let Some(bearer_token) = &client.bearer_token {
+        request = request.bearer_auth(bearer_token);
+    }
+
+    // Extra headers
+    for (key, value) in &client.extra_headers {
+        request = request.header(key, value);
+    }
+
+    request
+}
+
+/// Helper function to validate and parse content-type headers for DICOM JSON responses
+pub(crate) fn validate_dicom_json_content_type(
+    content_type_str: &str,
+) -> Result<(), DicomWebError> {
+    let media_type = MediaType::parse(content_type_str)
+        .map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
+
+    // Check if we have a DICOM-JSON, application/dicom+json, or JSON content type
+    if media_type.essence() != MediaType::new(APPLICATION, JSON)
+        && media_type.essence() != MediaType::from_parts(APPLICATION, DICOM, Some(JSON), &[])
+    {
+        return Err(DicomWebError::UnexpectedContentType {
+            content_type: content_type_str.to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+/// Helper function to validate content type from a multipart DICOM item.
+/// Accepts `application/dicom` and `application/octet-stream`.
+pub(crate) fn validate_multipart_item_content_type(ct: &str) -> Result<(), DicomWebError> {
+    let media_type =
+        MediaType::parse(ct).map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
+
+    // WADO-RS multipart items carry binary DICOM data (application/dicom)
+    // or raw octet streams (application/octet-stream)
+    if media_type.essence() != MediaType::new(APPLICATION, DICOM)
+        && media_type.essence() != MediaType::new(APPLICATION, OCTET_STREAM)
+    {
+        return Err(DicomWebError::UnexpectedContentType {
+            content_type: ct.to_string(),
+        });
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use dicom_dictionary_std::uids;
+    use dicom_dictionary_std::{tags, uids};
     use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
     use serde_json::json;
     use wiremock::MockServer;
 
     use super::*;
+
+    #[test_log::test]
+    fn selector_to_string_test() {
+        let selector = AttributeSelector::new(vec![
+            AttributeSelectorStep::Tag(tags::PATIENT_NAME),
+            AttributeSelectorStep::Nested {
+                tag: tags::REFERENCED_STUDY_SEQUENCE,
+                item: 1,
+            },
+            AttributeSelectorStep::Tag(tags::STUDY_INSTANCE_UID),
+        ])
+        .unwrap();
+
+        let result = selector_to_string(&selector);
+        assert_eq!(result, "00100010.00081110[1].0020000d");
+    }
+
+    async fn mock_mwl(mock_server: &MockServer) {
+        // MWL endpoint
+        let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("Accept"))
+            .and(wiremock::matchers::path(
+                "/modality-scheduled-procedure-steps",
+            ))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!([])));
+        mock_server.register(mock).await;
+    }
 
     async fn mock_qido(mock_server: &MockServer) {
         // STUDIES endpoint
@@ -271,7 +391,9 @@ mod tests {
         let mock = wiremock::Mock::given(wiremock::matchers::method("POST"))
             .and(wiremock::matchers::header_exists("Content-Type"))
             .and(wiremock::matchers::path("/studies"))
-            .respond_with(wiremock::ResponseTemplate::new(201));
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_raw("{}", "application/dicom+json"),
+            );
         mock_server.register(mock).await;
     }
 
@@ -281,10 +403,11 @@ mod tests {
         mock_qido(&mock_server).await;
         mock_wado(&mock_server).await;
         mock_stow(&mock_server).await;
+        mock_mwl(&mock_server).await;
         mock_server
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn query_study_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -293,7 +416,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn query_series_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -302,7 +425,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn query_instances_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -311,7 +434,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn query_series_in_study_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -323,7 +446,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn query_instances_in_series_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -335,7 +458,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn retrieve_study_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -348,7 +471,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn retrieve_study_metadata_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -361,7 +484,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn retrieve_series_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -377,7 +500,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn retrieve_series_metadata_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -393,7 +516,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn retrieve_instance_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -409,7 +532,7 @@ mod tests {
         assert!(result.is_err_and(|e| e.to_string().contains("Empty")));
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn retrieve_instance_metadata_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -425,7 +548,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn retrieve_frames_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let mut client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -443,7 +566,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn store_instances_test() {
         let mock_server = start_dicomweb_mock_server().await;
         let mut client = DicomWebClient::with_single_url(&mock_server.uri());
@@ -463,6 +586,18 @@ mod tests {
 
         // Perform WADO-RS request
         let result = client.store_instances().with_instances(stream).run().await;
+        assert!(result.is_ok());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn query_modality_scheduled_procedure_steps_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform MWL-RS request
+        let result = client
+            .query_modality_scheduled_procedure_steps()
+            .run()
+            .await;
         assert!(result.is_ok());
     }
 }

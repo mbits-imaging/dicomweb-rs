@@ -1,17 +1,15 @@
 //! Module for MWL-RS requests
-//! See https://github.com/krotz-dieter/dicomweb-dmwl-mpps/blob/main/documents/sup246_05_DICOMwebModalityWorkflowService.docx
-//! Supplement 246: DICOMweb Modality Workflow Services
-use dicom_core::Tag;
+//! See https://dicom.nema.org/medical/dicom/current/output/html/part18.html#chapter_14
+use dicom_core::{ops::AttributeSelector, Tag};
 use dicom_json::DicomJson;
 use dicom_object::InMemDicomObject;
 
-use mediatype::{
-    names::{APPLICATION, JSON},
-    MediaType, Name,
-};
 use snafu::ResultExt;
 
-use crate::{DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu};
+use crate::{
+    apply_auth_and_headers, selector_to_string, validate_dicom_json_content_type,
+    DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu,
+};
 
 /// A builder type for MWL-RS requests
 /// By default, the request is built with no filters, no limit, and no offset.
@@ -24,11 +22,11 @@ pub struct MwlRequest {
     offset: Option<u32>,
     includefields: Vec<Tag>,
     fuzzymatching: Option<bool>,
-    filters: Vec<(Tag, String)>,
+    filters: Vec<(AttributeSelector, String)>,
 }
 
 impl MwlRequest {
-    pub fn new(client: DicomWebClient, url: String) -> Self {
+    fn new(client: DicomWebClient, url: String) -> Self {
         MwlRequest {
             client,
             url,
@@ -49,6 +47,9 @@ impl MwlRequest {
         if let Some(offset) = self.offset {
             query.push((String::from("offset"), offset.to_string()));
         }
+        if let Some(fuzzymatching) = self.fuzzymatching {
+            query.push((String::from("fuzzymatching"), fuzzymatching.to_string()));
+        }
         for include_field in self.includefields.iter() {
             // Convert the tag to a radix string
             let radix_string = format!(
@@ -59,25 +60,12 @@ impl MwlRequest {
 
             query.push((String::from("includefield"), radix_string));
         }
-        for filter in self.filters.iter() {
-            query.push((filter.0.to_string(), filter.1.clone()));
+        for (selector, value) in self.filters.iter() {
+            query.push((selector_to_string(&selector), value.clone()));
         }
 
         let mut request = self.client.client.get(&self.url).query(&query);
-
-        // Basic authentication
-        if let Some(username) = &self.client.username {
-            request = request.basic_auth(username, self.client.password.as_ref());
-        }
-        // Bearer token
-        else if let Some(bearer_token) = &self.client.bearer_token {
-            request = request.bearer_auth(bearer_token);
-        }
-
-        // Extra headers
-        for (key, value) in &self.client.extra_headers {
-            request = request.header(key, value);
-        }
+        request = apply_auth_and_headers(request, &self.client);
 
         let response = request
             .send()
@@ -95,18 +83,7 @@ impl MwlRequest {
             .headers()
             .get("Content-Type")
             .ok_or(DicomWebError::MissingContentTypeHeader)?;
-        let media_type = MediaType::parse(ct.to_str().unwrap_or_default())
-            .map_err(|e| DicomWebError::ContentTypeParseFailed { source: e })?;
-
-        // Check if we have a DICOM-JSON or JSON content type
-        if media_type.essence() != MediaType::new(APPLICATION, JSON)
-            && media_type.essence()
-                != MediaType::from_parts(APPLICATION, Name::new_unchecked("dicom"), Some(JSON), &[])
-        {
-            return Err(DicomWebError::UnexpectedContentType {
-                content_type: ct.to_str().unwrap_or_default().to_string(),
-            });
-        }
+        validate_dicom_json_content_type(ct.to_str().unwrap_or_default())?;
 
         Ok(response
             .json::<Vec<DicomJson<InMemDicomObject>>>()
@@ -144,8 +121,8 @@ impl MwlRequest {
     }
 
     /// Add a filter to the query. Will be passed as a query parameter.
-    pub fn with_filter(&mut self, tag: Tag, value: String) -> &mut Self {
-        self.filters.push((tag, value));
+    pub fn with_filter(&mut self, selector: AttributeSelector, value: String) -> &mut Self {
+        self.filters.push((selector, value));
         self
     }
 }
