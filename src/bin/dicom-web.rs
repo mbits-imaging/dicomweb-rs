@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use dicom_dump::DumpOptions;
-use dicom_object::FileDicomObject;
 use dicom_web::DicomWebClient;
 use tracing::{error, Level};
 

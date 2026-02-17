@@ -1,6 +1,6 @@
 [package]
 name = "dicom-web"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Stephan Vedder <stephan.vedder@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -49,6 +49,7 @@ optional = true
 
 [dev-dependencies]
 dicom-dictionary-std = "0.9.0"
+test-log = "0.2.19"
 tokio = { version = "1.47.1", features = ["macros"] }
 wiremock = "0.6.5"
 
