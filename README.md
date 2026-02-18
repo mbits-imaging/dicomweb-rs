@@ -16,9 +16,15 @@ This is a DICOMweb client library, using the excellent [dicom-rs](https://github
   - /studies/{uid}: retrieve all instances in a specific study
   - /studies/{uid}/metadata: retrieve metadata for all instances in a study
   - /studies/{uid}/series/{uid}: retrieve all instances in a specific series
+  - /studies/{uid}/series/{uid}/metadata: retrieve metadata for all instances in a series
   - /studies/{uid}/series/{uid}/instances/{uid}: retrieve a single instance
   - /studies/{uid}/series/{uid}/instances/{uid}/metadata: retrieve metadata for a specific instance
   - /studies/{uid}/series/{uid}/instances/{uid}/frames/{framelist}: retrieve frame pixeldata for a specific instance
+- [x] STOW-RS:
+  - /studies: store instances
+  - /studies/{uid}: store instances in a specific study
+- [x] MWL-RS:
+  - /modality-scheduled-procedure-steps: query modality worklist items
 
 ## Usage
 
