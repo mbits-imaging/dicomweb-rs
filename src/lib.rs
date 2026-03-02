@@ -92,7 +92,7 @@ pub enum DicomWebError {
     },
     #[snafu(display("Failed to read DICOM object from multipart item"))]
     DicomReaderFailed { source: dicom_object::ReadError },
-    #[snafu(display("HTTP status code indicates failure"))]
+    #[snafu(display("HTTP status code indicates failure: {}", status_code))]
     HttpStatusFailure { status_code: StatusCode },
     #[snafu(display("Multipart item missing Content-Type header"))]
     MissingContentTypeHeader,
