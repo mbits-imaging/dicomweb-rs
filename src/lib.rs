@@ -1,6 +1,6 @@
 //! This crate contains a DICOMweb client for querying and retrieving DICOM objects.
 //!
-//! It supports the QIDO-RS, WADO-RS, STOW-RS and MWL-RS DICOMweb services for querying, retrieving, and storing DICOM objects.
+//! It supports the QIDO-RS, WADO-RS, STOW-RS, ASDO-RS and MWL-RS DICOMweb services for querying, retrieving, and storing DICOM objects.
 //! The HTTP requests are made using the reqwest crate, which is a high-level HTTP client for Rust.
 //!
 //! # Examples
@@ -105,6 +105,8 @@ pub enum DicomWebError {
     UnexpectedMultipartType { multipart_type: MultipartType },
     #[snafu(display("Empty response"))]
     EmptyResponse,
+    #[snafu(display("Other error: {}", message))]
+    Other { message: String },
 }
 
 impl DicomWebClient {

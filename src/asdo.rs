@@ -13,7 +13,8 @@ use crate::{
 };
 
 /// A builder type for ASDO-RS requests
-/// By default, the request is built with no filters, no limit, and no offset.
+/// By default, the request is built with no filters and no destination.
+/// Destination must be set for the request to be valid, and will be passed as a query parameter.
 #[derive(Debug, Clone)]
 pub struct AsdoSendRequest {
     client: DicomWebClient,
@@ -53,6 +54,12 @@ impl AsdoSendRequest {
         let mut query: Vec<(String, String)> = vec![];
         for (selector, value) in self.filters.iter() {
             query.push((selector_to_string(&selector), value.clone()));
+        }
+
+        if self.destination.is_empty() {
+            return Err(DicomWebError::Other {
+                message: "Destination must be set for ASDO-RS request".to_string(),
+            });
         }
 
         query.push((String::from("destination"), self.destination.clone()));
