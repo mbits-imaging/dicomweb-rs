@@ -55,6 +55,7 @@ use reqwest::StatusCode;
 use snafu::Snafu;
 use std::collections::HashMap;
 
+mod asdo;
 mod mwl;
 mod qido;
 mod stow;
