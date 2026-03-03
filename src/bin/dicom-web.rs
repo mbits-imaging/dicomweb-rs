@@ -256,13 +256,13 @@ async fn main() {
 
                 if let Some(username) = dst_username {
                     if let Some(password) = dst_password {
-                        builder.with_basic_auth(username, password);
+                        builder = builder.with_basic_auth(username, password);
                     } else {
                         eprintln!("Error: Destination password must be provided when destination username is set");
                         std::process::exit(ERROR_OTHER);
                     }
                 } else if let Some(token) = dst_token {
-                    builder.with_bearer_token(token);
+                    builder = builder.with_bearer_token(token);
                 }
 
                 builder

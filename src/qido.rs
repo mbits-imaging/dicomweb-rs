@@ -39,7 +39,7 @@ impl QidoRequest {
     }
 
     /// Execute the QIDO-RS request
-    pub async fn run(&self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
+    pub async fn run(self) -> Result<Vec<InMemDicomObject>, DicomWebError> {
         let mut query: Vec<(String, String)> = vec![];
         if let Some(limit) = self.limit {
             query.push((String::from("limit"), limit.to_string()));
@@ -96,32 +96,32 @@ impl QidoRequest {
 
     /// Set the maximum number of results to return. Will be passed as a query parameter.
     /// This is useful for pagination.
-    pub fn with_limit(&mut self, limit: u32) -> &mut Self {
+    pub fn with_limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
         self
     }
 
     /// Set the offset of the results to return. Will be passed as a query parameter.
     /// This is useful for pagination.
-    pub fn with_offset(&mut self, offset: u32) -> &mut Self {
+    pub fn with_offset(mut self, offset: u32) -> Self {
         self.offset = Some(offset);
         self
     }
 
     /// Set the tags that should be queried. Will be passed as a query parameter.
-    pub fn with_includefields(&mut self, includefields: Vec<Tag>) -> &mut Self {
+    pub fn with_includefields(mut self, includefields: Vec<Tag>) -> Self {
         self.includefields = includefields;
         self
     }
 
     /// Set whether fuzzy matching should be used. Will be passed as a query parameter.
-    pub fn with_fuzzymatching(&mut self, fuzzymatching: bool) -> &mut Self {
+    pub fn with_fuzzymatching(mut self, fuzzymatching: bool) -> Self {
         self.fuzzymatching = Some(fuzzymatching);
         self
     }
 
     /// Add a filter to the query. Will be passed as a query parameter.
-    pub fn with_filter(&mut self, selector: AttributeSelector, value: String) -> &mut Self {
+    pub fn with_filter(mut self, selector: AttributeSelector, value: String) -> Self {
         self.filters.push((selector, value));
         self
     }
