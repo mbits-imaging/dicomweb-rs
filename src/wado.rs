@@ -71,7 +71,7 @@ impl WadoFileRequest {
     }
 
     pub async fn run(
-        &self,
+        self,
     ) -> Result<
         impl Stream<Item = Result<FileDicomObject<InMemDicomObject>, DicomWebError>>,
         DicomWebError,
@@ -128,7 +128,7 @@ pub struct WadoSingleFileRequest {
 }
 
 impl WadoSingleFileRequest {
-    pub async fn run(&self) -> Result<FileDicomObject<InMemDicomObject>, DicomWebError> {
+    pub async fn run(self) -> Result<FileDicomObject<InMemDicomObject>, DicomWebError> {
         // Run the request and get the first item of the stream
         let mut stream = self.request.run().await?;
         stream.next().await.context(EmptyResponseSnafu)?
@@ -146,7 +146,7 @@ impl WadoFramesRequest {
         WadoFramesRequest { client, url }
     }
 
-    pub async fn run(&self) -> Result<Vec<MultipartItem>, DicomWebError> {
+    pub async fn run(self) -> Result<Vec<MultipartItem>, DicomWebError> {
         let mut request = self.client.client.get(&self.url);
         request = apply_auth_and_headers(request, &self.client);
 

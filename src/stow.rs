@@ -4,7 +4,7 @@ use dicom_json::DicomJson;
 use dicom_object::{FileDicomObject, InMemDicomObject};
 
 use futures_util::{stream::BoxStream, Stream, StreamExt};
-use rand::{distr::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, RngExt};
 use reqwest::Body;
 use snafu::ResultExt;
 
