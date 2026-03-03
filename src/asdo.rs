@@ -49,7 +49,7 @@ impl AsdoSendRequest {
     }
 
     /// Execute the ASDO-RS request
-    pub async fn run(&self) -> Result<InMemDicomObject, DicomWebError> {
+    pub async fn run(self) -> Result<InMemDicomObject, DicomWebError> {
         let mut query: Vec<(String, String)> = vec![];
         for (selector, value) in self.filters.iter() {
             query.push((selector_to_string(&selector), value.clone()));
@@ -102,24 +102,24 @@ impl AsdoSendRequest {
     }
 
     /// Add a filter to the query. Will be passed as a query parameter.
-    pub fn with_filter(&mut self, selector: AttributeSelector, value: String) -> &mut Self {
+    pub fn with_filter(mut self, selector: AttributeSelector, value: String) -> Self {
         self.filters.push((selector, value));
         self
     }
 
     /// Set the destination for the ASDO-RS request. Will be passed as a query parameter.
-    pub fn with_destination(&mut self, destination: String) -> &mut Self {
+    pub fn with_destination(mut self, destination: String) -> Self {
         self.destination = destination;
         self
     }
 
-    pub fn with_basic_auth(&mut self, username: String, password: String) -> &mut Self {
+    pub fn with_basic_auth(mut self, username: String, password: String) -> Self {
         self.username = Some(username);
         self.password = Some(password);
         self
     }
 
-    pub fn with_bearer_token(&mut self, token: String) -> &mut Self {
+    pub fn with_bearer_token(mut self, token: String) -> Self {
         self.token = Some(token);
         self
     }
