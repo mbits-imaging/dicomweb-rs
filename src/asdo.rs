@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 
 use crate::{
-    apply_auth_and_headers, selector_to_string, validate_dicom_json_content_type,
     DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu,
+    apply_auth_and_headers, selector_to_string, validate_dicom_json_content_type,
 };
 
 /// A builder type for ASDO-RS requests
@@ -53,7 +53,7 @@ impl AsdoSendRequest {
     pub async fn run(self) -> Result<InMemDicomObject, DicomWebError> {
         let mut query: Vec<(String, String)> = vec![];
         for (selector, value) in self.filters.iter() {
-            query.push((selector_to_string(&selector), value.clone()));
+            query.push((selector_to_string(selector), value.clone()));
         }
 
         if self.destination.is_empty() {

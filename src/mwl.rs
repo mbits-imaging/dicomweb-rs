@@ -1,14 +1,14 @@
 //! Module for MWL-RS requests
 //! See https://dicom.nema.org/medical/dicom/current/output/html/part18.html#chapter_14
-use dicom_core::{ops::AttributeSelector, Tag};
+use dicom_core::{Tag, ops::AttributeSelector};
 use dicom_json::DicomJson;
 use dicom_object::InMemDicomObject;
 
 use snafu::ResultExt;
 
 use crate::{
-    apply_auth_and_headers, selector_to_string, validate_dicom_json_content_type,
     DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu,
+    apply_auth_and_headers, selector_to_string, validate_dicom_json_content_type,
 };
 
 /// A builder type for MWL-RS requests
@@ -61,7 +61,7 @@ impl MwlRequest {
             query.push((String::from("includefield"), radix_string));
         }
         for (selector, value) in self.filters.iter() {
-            query.push((selector_to_string(&selector), value.clone()));
+            query.push((selector_to_string(selector), value.clone()));
         }
 
         let mut request = self.client.client.get(&self.url).query(&query);

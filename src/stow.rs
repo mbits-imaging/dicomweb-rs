@@ -3,21 +3,25 @@
 use dicom_json::DicomJson;
 use dicom_object::{FileDicomObject, InMemDicomObject};
 
-use futures_util::{stream::BoxStream, Stream, StreamExt};
-use rand::{distr::Alphanumeric, RngExt};
+use bytes::Bytes;
+use futures_util::{Stream, StreamExt, stream::BoxStream};
+use multipart_rs::MultipartStreamWriter;
 use reqwest::Body;
 use snafu::ResultExt;
 
 use crate::{
-    apply_auth_and_headers, validate_dicom_json_content_type, DeserializationFailedSnafu,
-    DicomWebClient, DicomWebError, RequestFailedSnafu,
+    DeserializationFailedSnafu, DicomWebClient, DicomWebError, RequestFailedSnafu,
+    apply_auth_and_headers, validate_dicom_json_content_type,
 };
+
+/// The byte stream forming the body of a single multipart part.
+type InstanceStream = BoxStream<'static, Result<Bytes, std::io::Error>>;
 
 /// A builder type for STOW-RS requests
 pub struct StowRequest {
     client: DicomWebClient,
     url: String,
-    instances: BoxStream<'static, Result<Vec<u8>, std::io::Error>>,
+    instances: BoxStream<'static, Result<InstanceStream, std::io::Error>>,
 }
 
 impl StowRequest {
@@ -29,11 +33,29 @@ impl StowRequest {
         }
     }
 
-    pub fn with_data(mut self, data: impl Stream<Item = Vec<u8>> + Send + 'static) -> Self {
-        self.instances = data.map(Ok).boxed();
+    /// Send each instance as a stream of byte chunks. This keeps peak memory
+    /// bounded by the chunk size instead of the instance size, so prefer this
+    /// for instances that are already serialized (e.g. files on disk).
+    pub fn with_data_streams<S, B>(mut self, instances: S) -> Self
+    where
+        S: Stream<Item = B> + Send + 'static,
+        B: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+    {
+        self.instances = instances.map(|body| Ok(body.boxed())).boxed();
         self
     }
 
+    /// Send each instance from a fully buffered byte vector.
+    pub fn with_data(mut self, data: impl Stream<Item = Vec<u8>> + Send + 'static) -> Self {
+        self.instances = data
+            .map(|buffer| {
+                Ok(futures_util::stream::once(async move { Ok(Bytes::from(buffer)) }).boxed())
+            })
+            .boxed();
+        self
+    }
+
+    /// Send in-memory DICOM objects, serializing each into a buffer.
     pub fn with_instances(
         mut self,
         instances: impl Stream<Item = FileDicomObject<InMemDicomObject>> + Send + 'static,
@@ -44,7 +66,10 @@ impl StowRequest {
                 instance.write_all(&mut buffer).map_err(|e| {
                     std::io::Error::other(format!("Failed to serialize DICOM instance: {}", e))
                 })?;
-                Ok(buffer)
+                Ok(
+                    futures_util::stream::once(async move { Ok(Bytes::from(buffer)) }).boxed()
+                        as InstanceStream,
+                )
             })
             .boxed();
         self
@@ -54,39 +79,21 @@ impl StowRequest {
         let mut request = self.client.client.post(&self.url);
         request = apply_auth_and_headers(request, &self.client);
 
-        let boundary: String = rand::rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect();
+        let writer = MultipartStreamWriter::new();
 
         let request = request.header(
             "Content-Type",
             format!(
                 "multipart/related; type=\"application/dicom\"; boundary={}",
-                boundary
+                writer.boundary
             ),
         );
 
-        let boundary_clone = boundary.clone();
-
-        // Convert each instance to a multipart item
-        let multipart_stream = self.instances.map(move |data| {
-            let mut multipart_item = Vec::new();
-            let buffer = data?;
-            multipart_item.extend_from_slice(b"--");
-            multipart_item.extend_from_slice(boundary.as_bytes());
-            multipart_item.extend_from_slice(b"\r\n");
-            multipart_item.extend_from_slice(b"Content-Type: application/dicom\r\n\r\n");
-            multipart_item.extend_from_slice(&buffer);
-            multipart_item.extend_from_slice(b"\r\n");
-            Ok::<_, std::io::Error>(multipart_item)
+        // Convert each instance's chunk stream to a multipart part
+        let parts = self.instances.map(|body| {
+            Ok::<_, std::io::Error>(("Content-Type: application/dicom".to_string(), body?))
         });
-
-        // Write the final boundary
-        let multipart_stream = multipart_stream.chain(futures_util::stream::once(async move {
-            Ok(format!("--{}--\r\n", boundary_clone).into_bytes())
-        }));
+        let multipart_stream = writer.stream(parts);
 
         let response = request
             .body(Body::wrap_stream(multipart_stream))

@@ -1,17 +1,17 @@
 //! Module for WADO-RS requests
 //! See https://dicom.nema.org/medical/dicom/current/output/html/part18.html#sect_10.4
 use dicom_json::DicomJson;
-use dicom_object::{from_reader, FileDicomObject, InMemDicomObject};
+use dicom_object::{FileDicomObject, InMemDicomObject, from_reader};
 
 use futures_util::{Stream, StreamExt};
 use multipart_rs::{MultipartItem, MultipartReader, MultipartType};
 use snafu::{OptionExt, ResultExt};
 
 use crate::{
-    apply_auth_and_headers, validate_dicom_json_content_type, validate_multipart_item_content_type,
     DeserializationFailedSnafu, DicomReaderFailedSnafu, DicomWebClient, DicomWebError,
     EmptyResponseSnafu, MissingContentTypeHeaderSnafu, MultipartReaderFailedSnafu,
-    RequestFailedSnafu,
+    RequestFailedSnafu, apply_auth_and_headers, validate_dicom_json_content_type,
+    validate_multipart_item_content_type,
 };
 
 /// A builder type for WADO-RS metadata requests

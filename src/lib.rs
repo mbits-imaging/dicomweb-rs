@@ -165,7 +165,7 @@ pub(crate) fn selector_to_string(selector: &AttributeSelector) -> String {
     for step in selector.iter() {
         // If this is not the first step, we need to add a dot separator
         if !result.is_empty() {
-            result.push_str(".");
+            result.push('.');
         }
 
         match step {

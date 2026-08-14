@@ -155,9 +155,9 @@ dependencies = [
 
 [[package]]
 name = "bytes"
-version = "1.11.1"
+version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
+checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cc"
@@ -188,17 +188,6 @@ name = "cfg_aliases"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
-
-[[package]]
-name = "chacha20"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f8d983286843e49675a4b7a2d174efe136dc93a18d69130dd18198a6c167601"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "rand_core 0.10.0",
-]
 
 [[package]]
 name = "chrono"
@@ -293,15 +282,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
-name = "cpufeatures"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "deadpool"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -321,9 +301,9 @@ checksum = "092966b41edc516079bdf31ec78a2e0588d1d0c08f78b91d8307215928642b2b"
 
 [[package]]
 name = "dicom-core"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31f6e9f0a581bffa2630b1bd381d8114b09b3f66d1ed76ab924104ad153e0c59"
+checksum = "9cc2f5e27e1395515510d3c71ad3d86f8f3c1597b23659f7df8cc933f94b92a2"
 dependencies = [
  "chrono",
  "either",
@@ -331,14 +311,14 @@ dependencies = [
  "num-traits",
  "safe-transmute",
  "smallvec",
- "snafu 0.8.9",
+ "snafu",
 ]
 
 [[package]]
 name = "dicom-dictionary-std"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "057250ea38d2e716cfde2f0c211f07c53be307c98b2bc6bf0e4f330f8e506968"
+checksum = "fd658dbe4102706148f924227cc5107677a9b0341c2efa2aa041b2c9c7d23d00"
 dependencies = [
  "dicom-core",
  "once_cell",
@@ -346,9 +326,9 @@ dependencies = [
 
 [[package]]
 name = "dicom-dump"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c20b0e3138fd3063c40f749b95c896884b0886c5461d154b7d8e1bc181ffe820"
+checksum = "5e0f8ee96d49fb578eabc2057d8bb5f8bbf9113a87ab570b65a68857b944bb5f"
 dependencies = [
  "clap",
  "dicom-core",
@@ -359,29 +339,29 @@ dependencies = [
  "dicom-transfer-syntax-registry",
  "owo-colors",
  "serde_json",
- "snafu 0.8.9",
+ "snafu",
  "terminal_size",
 ]
 
 [[package]]
 name = "dicom-encoding"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6076f4ef3627291ab2b5beecd2fde1df7f8e0219b8d1fe4ec45a773416409f13"
+checksum = "31c6ac3cbc66644aa0f4727130b34c548ac470ba8678202dbfc0be11f9169264"
 dependencies = [
  "byteordered",
  "dicom-core",
  "dicom-dictionary-std",
  "encoding",
  "inventory",
- "snafu 0.8.9",
+ "snafu",
 ]
 
 [[package]]
 name = "dicom-json"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dc0aee5ff26ec43a9d6f8373030c733b27e6110f717d9fc98e4787dc0cbc569"
+checksum = "e17a0468bd66f606d21d05773b86166302e192ab74dd2347b6895985f4b5d84e"
 dependencies = [
  "base64",
  "dicom-core",
@@ -395,9 +375,9 @@ dependencies = [
 
 [[package]]
 name = "dicom-object"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e550fd9def08c12b64e0410e83cb491821767d62e59b74d8b960c12ebd51490"
+checksum = "0504b87987f0e7624cf7ee063fe7ffdb438c66c092620817fb9bb0f130686b85"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -407,29 +387,29 @@ dependencies = [
  "dicom-transfer-syntax-registry",
  "itertools",
  "smallvec",
- "snafu 0.8.9",
+ "snafu",
  "tracing",
 ]
 
 [[package]]
 name = "dicom-parser"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e73d8c380a0655e819adf06263b2144d0ac55120aa3a66f2f6848b15e3de93e8"
+checksum = "6b35ad5a068e04a6e1c441982438e41d92b940a7c52998388b31197c7393a6ae"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-encoding",
  "smallvec",
- "snafu 0.8.9",
+ "snafu",
  "tracing",
 ]
 
 [[package]]
 name = "dicom-transfer-syntax-registry"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b680acd7f349598f94f3291266196ed687150af5ff57691184a493e5cfce090d"
+checksum = "f05c1eb0b59a2c2fdee65fc73105f8a4c346d91f7d74b5d560b1807acf802101"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -440,8 +420,9 @@ dependencies = [
 
 [[package]]
 name = "dicom-web"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
+ "bytes",
  "clap",
  "dicom-core",
  "dicom-dictionary-std",
@@ -449,13 +430,12 @@ dependencies = [
  "dicom-json",
  "dicom-object",
  "futures-util",
- "mediatype 0.21.0",
+ "mediatype 0.23.0",
  "multipart-rs",
- "rand 0.10.0",
  "reqwest",
  "serde",
  "serde_json",
- "snafu 0.9.0",
+ "snafu",
  "test-log",
  "tokio",
  "tracing",
@@ -745,7 +725,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi 6.0.0",
- "rand_core 0.10.0",
  "wasip2",
  "wasip3",
 ]
@@ -1205,21 +1184,21 @@ dependencies = [
 
 [[package]]
 name = "mediatype"
-version = "0.19.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33746aadcb41349ec291e7f2f0a3aa6834d1d7c58066fb4b01f68efc4c4b7631"
-
-[[package]]
-name = "mediatype"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "120fa187be19d9962f0926633453784691731018a2bf936ddb4e29101b79c4a7"
 
 [[package]]
-name = "memchr"
-version = "2.8.0"
+name = "mediatype"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+checksum = "0695a693e38d35838dd34bc3ab19911395f6837ccf55c7271189cfb12cb8b57f"
+
+[[package]]
+name = "memchr"
+version = "2.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "mio"
@@ -1234,14 +1213,14 @@ dependencies = [
 
 [[package]]
 name = "multipart-rs"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb1653328875ea3613bd4725fc09707d7f3ae7f07a4f0f48443a0d058a17638b"
+checksum = "7161f77c3118271d59b61f0f3b7e8cf0c97c6217b33b36f33b6b64a38c9e466a"
 dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "mediatype 0.19.20",
+ "mediatype 0.21.0",
  "memchr",
  "uuid",
 ]
@@ -1387,7 +1366,7 @@ dependencies = [
  "bytes",
  "getrandom 0.3.4",
  "lru-slab",
- "rand 0.9.2",
+ "rand",
  "ring",
  "rustc-hash",
  "rustls",
@@ -1441,18 +1420,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6db2770f06117d490610c7488547d543617b21bfa07796d7a12f6f1bd53850d1"
 dependencies = [
  "rand_chacha",
- "rand_core 0.9.5",
-]
-
-[[package]]
-name = "rand"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8"
-dependencies = [
- "chacha20",
- "getrandom 0.4.2",
- "rand_core 0.10.0",
+ "rand_core",
 ]
 
 [[package]]
@@ -1462,7 +1430,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
 dependencies = [
  "ppv-lite86",
- "rand_core 0.9.5",
+ "rand_core",
 ]
 
 [[package]]
@@ -1473,12 +1441,6 @@ checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 dependencies = [
  "getrandom 0.3.4",
 ]
-
-[[package]]
-name = "rand_core"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c8d0fd677905edcbeedbf2edb6494d676f0e98d54d5cf9bda0b061cb8fb8aba"
 
 [[package]]
 name = "regex"
@@ -1809,32 +1771,11 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "snafu"
-version = "0.8.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e84b3f4eacbf3a1ce05eac6763b4d629d60cbc94d632e4092c54ade71f1e1a2"
-dependencies = [
- "snafu-derive 0.8.9",
-]
-
-[[package]]
-name = "snafu"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d1d4bced6a69f90b2056c03dcff2c4737f98d6fb9e0853493996e1d253ca29c6"
 dependencies = [
- "snafu-derive 0.9.0",
-]
-
-[[package]]
-name = "snafu-derive"
-version = "0.8.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1c97747dbf44bb1ca44a561ece23508e99cb592e862f22222dcf42f51d1e451"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn",
+ "snafu-derive",
 ]
 
 [[package]]
@@ -2238,9 +2179,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.21.0"
+version = "1.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b672338555252d43fd2240c714dc444b8c6fb0a5c5335e65a07bba7742735ddb"
+checksum = "bf3923a6f5c4c6382e0b653c4117f48d631ea17f38ed86e2a828e6f7412f5239"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",

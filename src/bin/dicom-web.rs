@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use dicom_dump::DumpOptions;
 use dicom_web::DicomWebClient;
-use tracing::{error, Level};
+use tracing::{Level, error};
 
 /// Exit code for when an error emerged while reading the DICOM file.
 const ERROR_READ: i32 = -2;
@@ -258,7 +258,9 @@ async fn main() {
                     if let Some(password) = dst_password {
                         builder = builder.with_basic_auth(username, password);
                     } else {
-                        eprintln!("Error: Destination password must be provided when destination username is set");
+                        eprintln!(
+                            "Error: Destination password must be provided when destination username is set"
+                        );
                         std::process::exit(ERROR_OTHER);
                     }
                 } else if let Some(token) = dst_token {
