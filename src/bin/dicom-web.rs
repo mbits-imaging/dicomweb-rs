@@ -6,7 +6,7 @@ use dicom_core::Tag;
 use dicom_dump::DumpOptions;
 use dicom_json::DicomJson;
 use dicom_object::InMemDicomObject;
-use dicom_web::DicomWebClient;
+use dicom_web::{CommitmentStatus, DicomWebClient};
 use tracing::{Level, error};
 
 /// Exit code for when an error emerged while reading the DICOM file.
@@ -111,6 +111,29 @@ enum Mode {
         /// The tags to include in the response of get, e.g. 00400252
         #[clap(long = "includefield", value_parser = parse_tag)]
         includefields: Vec<Tag>,
+    },
+    /// Perform a Storage Commitment operation.
+    Stgcmt {
+        /// The transaction UID of the storage commitment request.
+        /// If not provided, a random UID will be generated.
+        #[clap(long = "transaction")]
+        transaction_uid: Option<String>,
+
+        /// The instances to commit. The SOP Class UID and SOP Instance UID are read from the files.
+        #[clap(long = "instances")]
+        instances: Vec<PathBuf>,
+
+        /// Only check the result of an earlier request once, without committing.
+        #[clap(long = "check", default_value_t = false)]
+        check: bool,
+
+        /// Seconds to wait between checking the result of a pending request
+        #[clap(long = "poll-interval", default_value_t = 1)]
+        poll_interval: u64,
+
+        /// Seconds to wait for the result of a pending request
+        #[clap(long = "timeout", default_value_t = 60)]
+        timeout: u64,
     },
 }
 
@@ -370,6 +393,78 @@ async fn main() {
                         });
 
                     DumpOptions::new().dump_object(&mpps).unwrap_or_else(|e| {
+                        eprintln!("Error: {:?}", e);
+                        std::process::exit(ERROR_DUMP);
+                    });
+                }
+            }
+        }
+        Mode::Stgcmt {
+            transaction_uid,
+            instances,
+            check,
+            poll_interval,
+            timeout,
+        } => {
+            println!("Storage Commitment mode");
+            let status = if check {
+                let transaction_uid = transaction_uid.unwrap_or_else(|| {
+                    eprintln!("Error: Transaction UID must be provided when --check is set");
+                    std::process::exit(ERROR_OTHER);
+                });
+
+                client
+                    .check_storage_commitment(&transaction_uid)
+                    .run()
+                    .await
+                    .unwrap_or_else(|e| {
+                        eprintln!("Error: {:?}", e);
+                        std::process::exit(ERROR_OTHER);
+                    })
+            } else {
+                let transaction_uid = transaction_uid
+                    .unwrap_or_else(|| format!("2.25.{}", uuid::Uuid::new_v4().as_u128()));
+                println!("Transaction UID: {}", transaction_uid);
+
+                let mut builder = client.request_storage_commitment(&transaction_uid);
+                for path in instances {
+                    let instance = dicom_object::open_file(path).unwrap_or_else(|e| {
+                        eprintln!("Error: {:?}", e);
+                        std::process::exit(ERROR_READ);
+                    });
+                    builder = builder.with_instance(
+                        instance.meta().media_storage_sop_class_uid(),
+                        instance.meta().media_storage_sop_instance_uid(),
+                    );
+                }
+
+                let mut status = builder.run().await.unwrap_or_else(|e| {
+                    eprintln!("Error: {:?}", e);
+                    std::process::exit(ERROR_OTHER);
+                });
+
+                // Poll for the result until the request is processed or the timeout expires
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
+                while matches!(status, CommitmentStatus::Pending)
+                    && std::time::Instant::now() < deadline
+                {
+                    tokio::time::sleep(std::time::Duration::from_secs(poll_interval)).await;
+                    status = client
+                        .check_storage_commitment(&transaction_uid)
+                        .run()
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!("Error: {:?}", e);
+                            std::process::exit(ERROR_OTHER);
+                        });
+                }
+                status
+            };
+
+            match status {
+                CommitmentStatus::Pending => println!("Storage commitment is still pending"),
+                CommitmentStatus::Done(result) => {
+                    DumpOptions::new().dump_object(&result).unwrap_or_else(|e| {
                         eprintln!("Error: {:?}", e);
                         std::process::exit(ERROR_DUMP);
                     });

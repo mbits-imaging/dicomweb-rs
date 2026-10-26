@@ -1,6 +1,6 @@
 //! This crate contains a DICOMweb client for querying and retrieving DICOM objects.
 //!
-//! It supports the QIDO-RS, WADO-RS, STOW-RS, ASDO-RS, MWL-RS and MPPS-RS DICOMweb services for querying, retrieving, and storing DICOM objects.
+//! It supports the QIDO-RS, WADO-RS, STOW-RS, ASDO-RS, MWL-RS, MPPS-RS and Storage Commitment DICOMweb services for querying, retrieving, and storing DICOM objects.
 //! The HTTP requests are made using the reqwest crate, which is a high-level HTTP client for Rust.
 //!
 //! # Examples
@@ -59,8 +59,11 @@ mod asdo;
 mod mpps;
 mod mwl;
 mod qido;
+mod stgcmt;
 mod stow;
 mod wado;
+
+pub use stgcmt::CommitmentStatus;
 /// The DICOMweb client for querying and retrieving DICOM objects.
 /// Can be reused for multiple requests.
 #[derive(Debug, Clone)]
@@ -449,6 +452,71 @@ mod tests {
         mock_server.register(mock).await;
     }
 
+    const PENDING_TRANSACTION_UID: &str = "1.2.826.0.1.3680043.8.498.10";
+    const DONE_TRANSACTION_UID: &str = "1.2.826.0.1.3680043.8.498.11";
+    const UNKNOWN_TRANSACTION_UID: &str = "1.2.826.0.1.3680043.8.498.12";
+    const COMMITMENT_RESULT: &str = r#"{
+        "00081199": {"vr": "SQ", "Value": [{
+            "00081150": {"vr": "UI", "Value": ["1.2.840.10008.5.1.4.1.1.2"]},
+            "00081155": {"vr": "UI", "Value": ["1.2.3.4"]}
+        }]},
+        "00081198": {"vr": "SQ", "Value": [{
+            "00081150": {"vr": "UI", "Value": ["1.2.840.10008.5.1.4.1.1.2"]},
+            "00081155": {"vr": "UI", "Value": ["1.2.3.5"]},
+            "00081197": {"vr": "US", "Value": [274]}
+        }]}
+    }"#;
+
+    async fn mock_stgcmt(mock_server: &MockServer) {
+        // Commit transaction, processed asynchronously
+        let mock = wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::header(
+                "Content-Type",
+                "application/dicom+json",
+            ))
+            .and(wiremock::matchers::path(format!(
+                "/commitment-requests/{PENDING_TRANSACTION_UID}"
+            )))
+            .respond_with(wiremock::ResponseTemplate::new(202));
+        mock_server.register(mock).await;
+        // Commit transaction, processed synchronously
+        let mock = wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::header(
+                "Content-Type",
+                "application/dicom+json",
+            ))
+            .and(wiremock::matchers::path(format!(
+                "/commitment-requests/{DONE_TRANSACTION_UID}"
+            )))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_raw(COMMITMENT_RESULT, "application/dicom+json"),
+            );
+        mock_server.register(mock).await;
+        // Check Commit Result transaction
+        let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(format!(
+                "/commitment-requests/{PENDING_TRANSACTION_UID}"
+            )))
+            .respond_with(wiremock::ResponseTemplate::new(202));
+        mock_server.register(mock).await;
+        let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(format!(
+                "/commitment-requests/{DONE_TRANSACTION_UID}"
+            )))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_raw(COMMITMENT_RESULT, "application/dicom+json"),
+            );
+        mock_server.register(mock).await;
+        let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(format!(
+                "/commitment-requests/{UNKNOWN_TRANSACTION_UID}"
+            )))
+            .respond_with(wiremock::ResponseTemplate::new(404));
+        mock_server.register(mock).await;
+    }
+
     // Create a DICOMWeb mock server
     async fn start_dicomweb_mock_server() -> MockServer {
         let mock_server = MockServer::start().await;
@@ -457,6 +525,7 @@ mod tests {
         mock_stow(&mock_server).await;
         mock_mwl(&mock_server).await;
         mock_mpps(&mock_server).await;
+        mock_stgcmt(&mock_server).await;
         mock_server
     }
 
@@ -744,5 +813,100 @@ mod tests {
 
         let requests = mock_server.received_requests().await.unwrap();
         assert_eq!(requests[0].url.query(), Some("includefield=00400252"));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn request_storage_commitment_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform Storage Commitment Commit request
+        let result = client
+            .request_storage_commitment(PENDING_TRANSACTION_UID)
+            .with_instance(uids::CT_IMAGE_STORAGE, "1.2.3.4")
+            .run()
+            .await;
+        assert!(matches!(result, Ok(CommitmentStatus::Pending)));
+
+        let requests = mock_server.received_requests().await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+        assert_eq!(
+            body,
+            json!({"00081199": {"vr": "SQ", "Value": [{
+                "00081150": {"vr": "UI", "Value": [uids::CT_IMAGE_STORAGE]},
+                "00081155": {"vr": "UI", "Value": ["1.2.3.4"]}
+            }]}})
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn request_storage_commitment_done_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform Storage Commitment Commit request, answered synchronously
+        let result = client
+            .request_storage_commitment(DONE_TRANSACTION_UID)
+            .with_instance(uids::CT_IMAGE_STORAGE, "1.2.3.4")
+            .with_instance(uids::CT_IMAGE_STORAGE, "1.2.3.5")
+            .run()
+            .await;
+        let Ok(CommitmentStatus::Done(result)) = result else {
+            panic!("Expected a commitment result, got {result:?}");
+        };
+        assert_eq!(
+            result
+                .element(tags::REFERENCED_SOP_SEQUENCE)
+                .unwrap()
+                .items()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            result
+                .element(tags::FAILED_SOP_SEQUENCE)
+                .unwrap()
+                .items()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn request_storage_commitment_without_instances_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        let result = client
+            .request_storage_commitment(PENDING_TRANSACTION_UID)
+            .run()
+            .await;
+        assert!(matches!(result, Err(DicomWebError::Other { .. })));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn check_storage_commitment_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform Storage Commitment Check Commit Result requests
+        let result = client
+            .check_storage_commitment(PENDING_TRANSACTION_UID)
+            .run()
+            .await;
+        assert!(matches!(result, Ok(CommitmentStatus::Pending)));
+
+        let result = client
+            .check_storage_commitment(DONE_TRANSACTION_UID)
+            .run()
+            .await;
+        assert!(matches!(result, Ok(CommitmentStatus::Done(_))));
+
+        let result = client
+            .check_storage_commitment(UNKNOWN_TRANSACTION_UID)
+            .run()
+            .await;
+        assert!(matches!(
+            result,
+            Err(DicomWebError::HttpStatusFailure { status_code }) if status_code == StatusCode::NOT_FOUND
+        ));
     }
 }

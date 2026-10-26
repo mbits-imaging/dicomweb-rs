@@ -23,6 +23,9 @@ This is a DICOMweb client library, using the excellent [dicom-rs](https://github
   - POST /modality-performed-procedure-steps/{uid}: create a modality performed procedure step
   - POST /modality-performed-procedure-steps/{uid}?update: update a modality performed procedure step
   - GET /modality-performed-procedure-steps/{uid}: retrieve a modality performed procedure step
+- [x] Storage Commitment:
+  - POST /commitment-requests/{uid}: request storage commitment for a set of instances
+  - GET /commitment-requests/{uid}: check the result of a storage commitment request
 
 ## Usage
 
