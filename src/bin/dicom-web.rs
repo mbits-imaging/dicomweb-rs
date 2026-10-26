@@ -2,7 +2,10 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use dicom_core::Tag;
 use dicom_dump::DumpOptions;
+use dicom_json::DicomJson;
+use dicom_object::InMemDicomObject;
 use dicom_web::DicomWebClient;
 use tracing::{Level, error};
 
@@ -23,6 +26,22 @@ enum DicomLevel {
     Study,
     Series,
     Instance,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+enum MppsAction {
+    Create,
+    Update,
+    Get,
+}
+
+/// Parse a tag in the DICOMweb radix form (e.g. 00400252)
+fn parse_tag(value: &str) -> Result<Tag, String> {
+    if value.len() != 8 {
+        return Err(format!("Invalid tag {value}, expected 8 hex digits"));
+    }
+    let tag = u32::from_str_radix(value, 16).map_err(|e| format!("Invalid tag {value}: {e}"))?;
+    Ok(Tag((tag >> 16) as u16, tag as u16))
 }
 
 #[derive(Debug, Subcommand)]
@@ -74,6 +93,24 @@ enum Mode {
 
         /// The level of the query
         level: DicomLevel,
+    },
+    /// Perform an MPPS-RS operation.
+    Mpps {
+        /// The MPPS operation to perform
+        action: MppsAction,
+
+        /// The MPPS UID (SOP Instance UID of the Modality Performed Procedure Step)
+        #[clap(long = "uid")]
+        mpps_uid: String,
+
+        /// Path to a DICOM JSON file with the data set to send.
+        /// Required for create and update.
+        #[clap(long = "dataset")]
+        dataset: Option<PathBuf>,
+
+        /// The tags to include in the response of get, e.g. 00400252
+        #[clap(long = "includefield", value_parser = parse_tag)]
+        includefields: Vec<Tag>,
     },
 }
 
@@ -281,6 +318,63 @@ async fn main() {
                 eprintln!("Error: {:?}", e);
                 std::process::exit(ERROR_DUMP);
             });
+        }
+        Mode::Mpps {
+            action,
+            mpps_uid,
+            dataset,
+            includefields,
+        } => {
+            println!("MPPS-RS mode");
+            match action {
+                MppsAction::Create | MppsAction::Update => {
+                    let path = dataset.unwrap_or_else(|| {
+                        eprintln!("Error: --dataset must be provided for create and update");
+                        std::process::exit(ERROR_OTHER);
+                    });
+                    let json = std::fs::read_to_string(path).unwrap_or_else(|e| {
+                        eprintln!("Error: {:?}", e);
+                        std::process::exit(ERROR_READ);
+                    });
+                    let dataset = serde_json::from_str::<DicomJson<InMemDicomObject>>(&json)
+                        .unwrap_or_else(|e| {
+                            eprintln!("Error: {:?}", e);
+                            std::process::exit(ERROR_READ);
+                        })
+                        .into_inner();
+
+                    let builder = match action {
+                        MppsAction::Create => client.create_mpps(&mpps_uid),
+                        _ => client.update_mpps(&mpps_uid),
+                    };
+
+                    builder
+                        .with_dataset(dataset)
+                        .run()
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!("Error: {:?}", e);
+                            std::process::exit(ERROR_OTHER);
+                        });
+                    println!("MPPS {} succeeded", mpps_uid);
+                }
+                MppsAction::Get => {
+                    let mpps = client
+                        .retrieve_mpps(&mpps_uid)
+                        .with_includefields(includefields)
+                        .run()
+                        .await
+                        .unwrap_or_else(|e| {
+                            eprintln!("Error: {:?}", e);
+                            std::process::exit(ERROR_OTHER);
+                        });
+
+                    DumpOptions::new().dump_object(&mpps).unwrap_or_else(|e| {
+                        eprintln!("Error: {:?}", e);
+                        std::process::exit(ERROR_DUMP);
+                    });
+                }
+            }
         }
     }
 }

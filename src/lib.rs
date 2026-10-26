@@ -1,6 +1,6 @@
 //! This crate contains a DICOMweb client for querying and retrieving DICOM objects.
 //!
-//! It supports the QIDO-RS, WADO-RS, STOW-RS, ASDO-RS and MWL-RS DICOMweb services for querying, retrieving, and storing DICOM objects.
+//! It supports the QIDO-RS, WADO-RS, STOW-RS, ASDO-RS, MWL-RS and MPPS-RS DICOMweb services for querying, retrieving, and storing DICOM objects.
 //! The HTTP requests are made using the reqwest crate, which is a high-level HTTP client for Rust.
 //!
 //! # Examples
@@ -56,6 +56,7 @@ use snafu::Snafu;
 use std::collections::HashMap;
 
 mod asdo;
+mod mpps;
 mod mwl;
 mod qido;
 mod stow;
@@ -400,6 +401,54 @@ mod tests {
         mock_server.register(mock).await;
     }
 
+    const MPPS_UID: &str = "1.2.826.0.1.3680043.8.498.1";
+    const EXISTING_MPPS_UID: &str = "1.2.826.0.1.3680043.8.498.2";
+
+    async fn mock_mpps(mock_server: &MockServer) {
+        // Create of an already existing MPPS
+        let mock = wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path(format!(
+                "/modality-performed-procedure-steps/{EXISTING_MPPS_UID}"
+            )))
+            .respond_with(wiremock::ResponseTemplate::new(409));
+        mock_server.register(mock).await;
+        // MPPS endpoint, Update transaction
+        let mock = wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::header(
+                "Content-Type",
+                "application/dicom+json",
+            ))
+            .and(wiremock::matchers::path(format!(
+                "/modality-performed-procedure-steps/{MPPS_UID}"
+            )))
+            .and(wiremock::matchers::query_param("update", ""))
+            .respond_with(wiremock::ResponseTemplate::new(200));
+        mock_server.register(mock).await;
+        // MPPS endpoint, Create transaction
+        let mock = wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::header(
+                "Content-Type",
+                "application/dicom+json",
+            ))
+            .and(wiremock::matchers::path(format!(
+                "/modality-performed-procedure-steps/{MPPS_UID}"
+            )))
+            .and(wiremock::matchers::query_param_is_missing("update"))
+            .respond_with(wiremock::ResponseTemplate::new(201));
+        mock_server.register(mock).await;
+        // MPPS endpoint, Retrieve transaction
+        let mock = wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::header_exists("Accept"))
+            .and(wiremock::matchers::path(format!(
+                "/modality-performed-procedure-steps/{MPPS_UID}"
+            )))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_raw(
+                r#"{"00400252":{"vr":"CS","Value":["IN PROGRESS"]}}"#,
+                "application/dicom+json",
+            ));
+        mock_server.register(mock).await;
+    }
+
     // Create a DICOMWeb mock server
     async fn start_dicomweb_mock_server() -> MockServer {
         let mock_server = MockServer::start().await;
@@ -407,6 +456,7 @@ mod tests {
         mock_wado(&mock_server).await;
         mock_stow(&mock_server).await;
         mock_mwl(&mock_server).await;
+        mock_mpps(&mock_server).await;
         mock_server
     }
 
@@ -602,5 +652,97 @@ mod tests {
             .run()
             .await;
         assert!(result.is_ok());
+    }
+
+    fn mpps_dataset(status: &str) -> InMemDicomObject {
+        InMemDicomObject::from_element_iter([dicom_core::DataElement::new(
+            tags::PERFORMED_PROCEDURE_STEP_STATUS,
+            dicom_core::VR::CS,
+            dicom_core::PrimitiveValue::from(status),
+        )])
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn create_mpps_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform MPPS-RS Create request
+        let result = client
+            .create_mpps(MPPS_UID)
+            .with_dataset(mpps_dataset("IN PROGRESS"))
+            .run()
+            .await;
+        assert!(result.is_ok());
+
+        let requests = mock_server.received_requests().await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+        assert_eq!(
+            body,
+            json!({"00400252": {"vr": "CS", "Value": ["IN PROGRESS"]}})
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn create_mpps_without_dataset_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        let result = client.create_mpps(MPPS_UID).run().await;
+        assert!(matches!(result, Err(DicomWebError::Other { .. })));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn create_existing_mpps_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform MPPS-RS Create request for an MPPS that already exists
+        let result = client
+            .create_mpps(EXISTING_MPPS_UID)
+            .with_dataset(mpps_dataset("IN PROGRESS"))
+            .run()
+            .await;
+        assert!(matches!(
+            result,
+            Err(DicomWebError::HttpStatusFailure { status_code }) if status_code == StatusCode::CONFLICT
+        ));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn update_mpps_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform MPPS-RS Update request
+        let result = client
+            .update_mpps(MPPS_UID)
+            .with_dataset(mpps_dataset("COMPLETED"))
+            .run()
+            .await;
+        assert!(result.is_ok());
+
+        let requests = mock_server.received_requests().await.unwrap();
+        assert_eq!(requests[0].url.query(), Some("update"));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn retrieve_mpps_test() {
+        let mock_server = start_dicomweb_mock_server().await;
+        let client = DicomWebClient::with_single_url(&mock_server.uri());
+        // Perform MPPS-RS Retrieve request
+        let result = client
+            .retrieve_mpps(MPPS_UID)
+            .with_includefields(vec![tags::PERFORMED_PROCEDURE_STEP_STATUS])
+            .run()
+            .await
+            .unwrap();
+        assert_eq!(
+            result
+                .element(tags::PERFORMED_PROCEDURE_STEP_STATUS)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "IN PROGRESS"
+        );
+
+        let requests = mock_server.received_requests().await.unwrap();
+        assert_eq!(requests[0].url.query(), Some("includefield=00400252"));
     }
 }

@@ -19,6 +19,10 @@ This is a DICOMweb client library, using the excellent [dicom-rs](https://github
   - /studies/{uid}/series/{uid}/instances/{uid}: retrieve a single instance
   - /studies/{uid}/series/{uid}/instances/{uid}/metadata: retrieve metadata for a specific instance
   - /studies/{uid}/series/{uid}/instances/{uid}/frames/{framelist}: retrieve frame pixeldata for a specific instance
+- [x] MPPS-RS:
+  - POST /modality-performed-procedure-steps/{uid}: create a modality performed procedure step
+  - POST /modality-performed-procedure-steps/{uid}?update: update a modality performed procedure step
+  - GET /modality-performed-procedure-steps/{uid}: retrieve a modality performed procedure step
 
 ## Usage
 
